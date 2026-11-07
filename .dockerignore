@@ -1,0 +1,13 @@
+# キーと実行結果はイメージに入れない
+.env
+.env.*
+!.env.example
+state/
+journal/
+reports/
+briefs/
+data/
+__pycache__/
+*.pyc
+.pytest_cache/
+.git/

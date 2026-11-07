@@ -1,0 +1,49 @@
+//@version=6
+// HedgeDesk Watch: 目視確認専用のインジケーター。
+//
+// 重要: TradingViewの利用規約は、チャート・アラート・Webhookの自動売買への利用を禁じています。
+// このアラートはあなたへの通知専用です。Webhookでボットや発注システムに接続しないでください。
+// 売買判断はHedgeDeskがPython側で別に計算します。
+//
+// 表示するもの:
+//   - Chart Analyst の 1〜10 点スコア（hedgedesk/indicators.py と同じ定義）
+//   - 現時点の最上位候補 S4_BO_STOCK のブレイク条件（2026-11-07 の検証では基準未達・不合格）
+// 差異: 決算跨ぎ禁止と流動性の判定は入っていません。価格の配当調整の有無により、小さな差が出ます。
+indicator("HedgeDesk Watch", overlay = true)
+
+lookback = input.int(20, "高値の期間")
+volMult  = input.float(1.5, "出来高倍率")
+stopK    = input.float(2.0, "ストップ幅 (ATR)")
+exitLen  = input.int(20, "手仕舞いの移動平均")
+minScore = input.int(7, "必要スコア")
+
+atr14  = ta.rma(ta.tr(true), 14)
+sma20  = ta.sma(close, exitLen)
+sma50  = ta.sma(close, 50)
+sma200 = ta.sma(close, 200)
+avgVol = ta.sma(volume, 20)
+
+trendPts = (close > sma200 ? 2 : 0) + (sma50 > sma200 ? 1 : 0) + (close > sma50 ? 1 : 0)
+r14      = ta.rsi(close, 14)
+momPts   = (close > close[63] ? 1 : 0) + (close > close[21] ? 1 : 0) + (r14 >= 40 and r14 <= 75 ? 1 : 0)
+upVol    = math.sum(close > close[1] ? volume : 0.0, 20)
+dnVol    = math.sum(close > close[1] ? 0.0 : volume, 20)
+volPts   = (volume >= avgVol ? 1 : 0) + (volume >= 1.5 * avgVol ? 1 : 0) + (upVol > dnVol ? 1 : 0)
+score    = trendPts + momPts + volPts
+
+priorHigh = ta.highest(high[1], lookback)
+signal    = barstate.isconfirmed and close > priorHigh and volume >= volMult * avgVol[1] and close > sma200 and score >= minScore
+limitPx   = close + 0.25 * atr14
+stopPx    = limitPx - stopK * atr14
+
+plot(sma20, "手仕舞い線", color = color.orange)
+plot(sma200, "200日線", color = color.gray)
+plotshape(signal, "候補", shape.triangleup, location.belowbar, color.teal, size = size.small)
+plot(signal ? limitPx : na, "翌日の指値", color.teal, style = plot.style_circles, linewidth = 2)
+plot(signal ? stopPx : na, "ストップ", color.red, style = plot.style_circles, linewidth = 2)
+
+var table box = table.new(position.top_right, 1, 1)
+if barstate.islast
+    table.cell(box, 0, 0, "Score " + str.tostring(score) + "/10", bgcolor = score >= minScore ? color.new(color.teal, 70) : color.new(color.gray, 70), text_color = chart.fg_color)
+
+alertcondition(signal, "HedgeDesk 候補（通知専用）", "HedgeDesk候補: {{ticker}} スコア7以上のブレイク。通知専用で、発注には接続しないこと。")

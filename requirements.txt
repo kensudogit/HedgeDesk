@@ -1,0 +1,7 @@
+# 直接使うパッケージ。バージョンを変えるときは requirements.lock も作り直す。
+numpy==2.4.1
+pandas==2.3.3
+scipy==1.18.1
+requests==2.34.2
+yfinance==1.4.1
+tzdata==2025.3

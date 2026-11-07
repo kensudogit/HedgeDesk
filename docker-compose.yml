@@ -1,0 +1,77 @@
+# 使い方は README.md の「Docker」を参照。
+#
+# 既定で起動するのはサービス画面（ui）だけ。
+# 5分ごとの処理（tick）は、Windowsタスクの HedgeDeskTick を止めてから、--profile tick で起動する。
+# ロックで同時実行は防いでいるが、運用はどちらか一方にする。
+#
+# このPCはDockerネットワークの空きが少ないので、新しいネットワークを作らず既定のbridgeを使う。
+name: hedgedesk
+
+x-base: &base
+  image: hedgedesk:local
+  build:
+    context: .
+    target: runtime
+  network_mode: bridge
+  env_file:
+    - path: .env
+      required: false
+  read_only: true
+  tmpfs:
+    - /tmp
+    - /home/desk
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+
+x-writable-data: &writable-data
+  - ./state:/app/state
+  - ./journal:/app/journal
+  - ./reports:/app/reports
+  - ./briefs:/app/briefs
+  - ./data:/app/data
+
+services:
+  # サービス画面。データは読み取り専用で、このPCからしか見られない。
+  ui:
+    <<: *base
+    command: ["python", "-m", "hedgedesk", "ui"]
+    environment:
+      HEDGEDESK_UI_HOST: 0.0.0.0
+    ports:
+      - "127.0.0.1:${HEDGEDESK_UI_PORT:-8765}:8765"
+    volumes:
+      - ./state:/app/state:ro
+      - ./journal:/app/journal:ro
+      - ./briefs:/app/briefs:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8765/api/status', timeout=8)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # 5分ごとの処理（Scout、監視、シグナル、Trader）。ペーパー口座のキーはここで使う。
+  tick:
+    <<: *base
+    profiles: ["tick"]
+    command: ["python", "-m", "hedgedesk", "loop"]
+    volumes: *writable-data
+    restart: unless-stopped
+
+  # 手動コマンド用。例: docker compose --profile tools run --rm desk python -m hedgedesk research --refresh
+  desk:
+    <<: *base
+    profiles: ["tools"]
+    volumes: *writable-data
+
+  # テスト。データもキーも渡さない。
+  test:
+    image: hedgedesk:test
+    build:
+      context: .
+      target: test
+    profiles: ["test"]
+    network_mode: bridge
