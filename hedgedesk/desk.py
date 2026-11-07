@@ -21,6 +21,7 @@ NY = ZoneInfo("America/New_York")
 TICKS = C.STATE / "ticks.json"
 APPROVED = C.STATE / "approved_plans.json"
 LOCK_STALE_SECONDS = 1800
+TICK_STALE_MINUTES = 15
 
 
 def _load(path, default):
@@ -244,6 +245,17 @@ def market_snapshot() -> dict:
     return {"source": log["source"], "rows": rows, "vix": vix, "vix_date": str(ctx.vix.index[-1].date()) if vix else None, "unusual_volume": unusual}
 
 
+def _tick_health(now: datetime) -> dict:
+    """5分処理の生存確認。コンテナが止まっていると、画面もログも更新されないので、ブリーフで報告する。"""
+    try:
+        lines = (C.STATE / "tick.log").read_text(encoding="utf-8").splitlines()
+        last = json.loads(lines[-1])["ts"]
+    except (OSError, IndexError, ValueError, KeyError):
+        return {"healthy": False, "last_tick_utc": None, "age_minutes": None}
+    age = (now - datetime.fromisoformat(last)).total_seconds() / 60
+    return {"healthy": age <= TICK_STALE_MINUTES, "last_tick_utc": last, "age_minutes": round(age, 1)}
+
+
 def brief_data(now: datetime | None = None) -> dict:
     """Chief of Staff がブリーフを書くための材料を1つのJSONにまとめる。"""
     now = now or datetime.now(timezone.utc)
@@ -261,6 +273,7 @@ def brief_data(now: datetime | None = None) -> dict:
             account = {"error": type(ex).__name__}
     out = {
         "as_of_utc": now.isoformat(timespec="seconds"),
+        "tick_health": _tick_health(now),
         "market": market_snapshot(),
         "events": events.upcoming(now, days=7),
         "launch_gate": {"ok": gate_ok, "reasons": gate_reasons},

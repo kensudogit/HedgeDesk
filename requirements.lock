@@ -4,6 +4,7 @@ cffi==2.1.1
 charset-normalizer==3.5.2
 curl_cffi==0.17.0
 idna==3.20
+lxml==6.0.2
 multitasking==0.0.13
 numpy==2.4.1
 pandas==2.3.3

@@ -138,6 +138,21 @@ def test_refresh_with_jitter_gives_same_fingerprint(fake_yahoo, monkeypatch):
     assert a["AAA"].iloc[:-5]["close"].equals(b["AAA"].iloc[:-5]["close"])
 
 
+def test_html_parser_for_earnings_is_installed():
+    """lxml がないと決算日の取得が全銘柄で失敗する。コンテナで実際に起きた。"""
+    import lxml.etree  # noqa: F401
+
+
+def test_research_stops_when_earnings_are_mostly_missing():
+    from hedgedesk import config as C
+    from hedgedesk.research import check_earnings_coverage
+
+    check_earnings_coverage([])
+    check_earnings_coverage(C.STOCKS[:2])
+    with pytest.raises(RuntimeError):
+        check_earnings_coverage(C.STOCKS)
+
+
 def test_evaluation_is_deterministic():
     from test_signals_and_metrics import synthetic_context
 

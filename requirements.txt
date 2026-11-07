@@ -4,4 +4,6 @@ pandas==2.3.3
 scipy==1.18.1
 requests==2.34.2
 yfinance==1.4.1
+# yfinance の決算日取得に必要だが、yfinance の必須依存には含まれていない
+lxml==6.0.2
 tzdata==2025.3

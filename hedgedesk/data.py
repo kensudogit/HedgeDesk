@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import warnings
 from datetime import datetime, time, timezone
 from zoneinfo import ZoneInfo
@@ -73,6 +74,13 @@ def _cache_path(symbol: str, stamp: str):
     return CACHE / f"{symbol.replace('^', '_')}_{stamp}.pkl"
 
 
+def _save(df: pd.DataFrame, path) -> None:
+    """書きかけのファイルを別のコンテナが読まないよう、一時ファイル経由で置き換える。"""
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    df.to_pickle(tmp)
+    os.replace(tmp, path)
+
+
 def _latest_path(symbol: str):
     return CACHE / f"latest_{symbol.replace('^', '_')}.pkl"
 
@@ -130,8 +138,8 @@ def load(symbols: list[str], refresh: bool = False, now: datetime | None = None)
                 df, changed = stabilize(pd.read_pickle(latest), df)
                 log.setdefault("history_changed", {})[s] = changed
             if len(df):
-                df.to_pickle(latest)
-            df.to_pickle(_cache_path(s, stamp))
+                _save(df, latest)
+            _save(df, _cache_path(s, stamp))
             out[s] = df
     for s in symbols:
         out[s] = drop_incomplete(out[s], s, now)

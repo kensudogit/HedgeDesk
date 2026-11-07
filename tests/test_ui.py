@@ -14,7 +14,6 @@ from hedgedesk import config as C, scout, trader, ui
 def server(tmp_path, monkeypatch):
     monkeypatch.setattr(C, "BRIEFS", tmp_path / "briefs")
     monkeypatch.setattr(scout, "OUT", tmp_path / "scout")
-    monkeypatch.setattr(ui, "_windows_task_registered", lambda: True)
     srv = ThreadingHTTPServer(("127.0.0.1", 0), ui.Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{srv.server_address[1]}"
