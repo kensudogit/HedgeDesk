@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -22,14 +21,14 @@ PORT = 8765
 TICK_STALE_SECONDS = 600
 
 SCHEDULE = [
-    {"job": "Scout（ニュース収集）", "when": "30分ごと", "runner": "Windowsタスク"},
-    {"job": "キルスイッチ監視、約定確認", "when": "5分ごと", "runner": "Windowsタスク"},
-    {"job": "株のシグナル判定と審査", "when": "米国の引け後（NY 16:15）", "runner": "Windowsタスク"},
-    {"job": "株の再審査、発注", "when": "NY 08:45、09:15", "runner": "Windowsタスク"},
-    {"job": "暗号資産のシグナル判定と発注", "when": "09:05 JST", "runner": "Windowsタスク"},
-    {"job": "夜間リサーチ（Strategist）", "when": "毎日 21:00ごろ JST", "runner": "Claude定期タスク"},
-    {"job": "モーニングブリーフ", "when": "毎日 07:15ごろ JST", "runner": "Claude定期タスク"},
-    {"job": "週次レビュー", "when": "日曜 10:00ごろ JST", "runner": "Claude定期タスク"},
+    {"job": "Scout（ニュース収集）", "when": "30分ごと", "runner": "tickコンテナ"},
+    {"job": "キルスイッチ監視、約定確認", "when": "5分ごと", "runner": "tickコンテナ"},
+    {"job": "株のシグナル判定と審査", "when": "米国の引け後（NY 16:15）", "runner": "tickコンテナ"},
+    {"job": "株の再審査、発注", "when": "NY 08:45、09:15", "runner": "tickコンテナ"},
+    {"job": "暗号資産のシグナル判定と発注", "when": "09:05 JST", "runner": "tickコンテナ"},
+    {"job": "夜間リサーチ（Strategist）", "when": "毎日 21:00 JST", "runner": "jobsコンテナ"},
+    {"job": "モーニングブリーフ", "when": "毎日 07:15 JST", "runner": "jobsコンテナ"},
+    {"job": "週次レビュー", "when": "日曜 10:00 JST", "runner": "jobsコンテナ"},
 ]
 
 
@@ -38,18 +37,6 @@ def _read_json(path, default=None):
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return default
-
-
-def _windows_task_registered() -> bool | None:
-    """Windowsタスクの登録を確認する。Windows以外では None。"""
-    try:
-        r = subprocess.run(
-            ["schtasks", "/Query", "/TN", "HedgeDeskTick"], capture_output=True, timeout=10,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
-        return r.returncode == 0
-    except (OSError, subprocess.SubprocessError):
-        return None
 
 
 def _last_tick() -> dict | None:
@@ -89,7 +76,6 @@ def status(now: datetime | None = None) -> dict:
     rows = journal.read()
     return {
         "now_utc": now.isoformat(timespec="seconds"),
-        "windows_task": _windows_task_registered(),
         "last_tick": tick["ts"] if tick else None,
         "tick_age_seconds": age,
         "tick_healthy": age is not None and age <= TICK_STALE_SECONDS,
@@ -163,7 +149,7 @@ function render(s){
  $('lead').textContent=kill?'キルスイッチが作動中です。新規の取引は止まっています。':canTrade?'ペーパートレードの稼働条件が揃っています。':!s.tick_healthy?'定期実行が止まっている可能性があります。':'調査は稼働中です。取引はしていません。'+(champ?'Alpacaのキーが未設定です。':'基準を通った戦略がありません。');
  $('updated').textContent='更新 '+jst(s.now_utc)+' JST（30秒ごとに更新）';
  $('stat').replaceChildren();
- row('5分ごとの定期実行',s.tick_healthy?'稼働中':'停止の可能性',s.tick_healthy?'ok':'bad','最終実行 '+jst(s.last_tick)+' JST'+(s.windows_task===false?'。Windowsタスクが未登録':''));
+ row('5分ごとの定期実行',s.tick_healthy?'稼働中':'停止の可能性',s.tick_healthy?'ok':'bad','最終実行 '+jst(s.last_tick)+' JST');
  row('チャンピオン',champ?champ.id:'なし',champ?'ok':'off',champ?'スコア '+champ.score:'基準を通った戦略がないため、取引しません');
  row('Alpacaペーパー口座',s.alpaca_keys?'キー設定済み':'未接続',s.alpaca_keys?'ok':'off',s.alpaca_keys?'':'キーがない間は発注しません');
  row('キルスイッチ',kill?'作動中':'未作動',kill?'bad':'ok',kill?s.kill_switch.reason:'');

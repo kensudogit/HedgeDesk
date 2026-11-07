@@ -1,8 +1,7 @@
 # 使い方は README.md の「Docker」を参照。
 #
-# 既定で起動するのはサービス画面（ui）だけ。
-# 5分ごとの処理（tick）は、Windowsタスクの HedgeDeskTick を止めてから、--profile tick で起動する。
-# ロックで同時実行は防いでいるが、運用はどちらか一方にする。
+# サービス画面（ui）、5分ごとの処理（tick）、定時ジョブ（jobs）は --profile tick で一緒に起動する。
+# 同じ state/ で tick や jobs を複数動かさないこと。tick の同時実行はロックで防いでいる。
 #
 # このPCはDockerネットワークの空きが少ないので、新しいネットワークを作らず既定のbridgeを使う。
 name: hedgedesk
@@ -58,6 +57,14 @@ services:
     <<: *base
     profiles: ["tick"]
     command: ["python", "-m", "hedgedesk", "loop"]
+    volumes: *writable-data
+    restart: unless-stopped
+
+  # 夜間リサーチ、モーニングブリーフ、週次レビュー。AIを使わないのでAPIキーは不要。
+  jobs:
+    <<: *base
+    profiles: ["tick"]
+    command: ["python", "-m", "hedgedesk", "jobs"]
     volumes: *writable-data
     restart: unless-stopped
 

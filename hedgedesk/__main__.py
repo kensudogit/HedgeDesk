@@ -1,4 +1,4 @@
-"""コマンド入口: python -m hedgedesk <research|brief-data|tick|loop|weekly|scout|status|ui|reset-kill>"""
+"""コマンド入口: python -m hedgedesk <research|brief|brief-data|tick|loop|jobs|weekly|scout|status|ui|reset-kill>"""
 import json
 import sys
 
@@ -30,6 +30,15 @@ def main() -> int:
         from .desk import run_loop
 
         run_loop()
+    elif cmd == "jobs":
+        from .scheduler import run_loop as jobs_loop
+
+        jobs_loop()
+    elif cmd == "brief":
+        from .brief import render, write_brief
+        from .desk import brief_data
+
+        print(render(brief_data()) if "--stdout" in sys.argv else write_brief())
     elif cmd == "weekly":
         from .desk import weekly_review
 

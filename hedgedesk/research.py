@@ -25,6 +25,7 @@ from .strategies import BLOCKED_HYPOTHESES, STRATEGIES, Context, Strategy, prepa
 REGISTRY = C.STATE / "trial_registry.json"
 LATEST = C.STATE / "latest_research.json"
 CHAMPION = C.STATE / "champion.json"
+MAX_EARNINGS_FAILURE_SHARE = 0.10
 
 
 def build_context(refresh: bool = False, now: datetime | None = None) -> tuple[Context, dict]:
@@ -211,9 +212,17 @@ def update_registry(evaluated: list[dict]) -> dict:
     return reg
 
 
+def check_earnings_coverage(failed: list[str]) -> None:
+    """決算データの取得が広く失敗したら中止する。個別株の検証が成り立たず、前回の結果を壊してしまうため。"""
+    if len(failed) > MAX_EARNINGS_FAILURE_SHARE * len(C.STOCKS):
+        journal.log("job_error", "Strategist", job="research", error=f"決算データの取得失敗 {len(failed)}銘柄。検証を中止し、前回の結果を維持")
+        raise RuntimeError(f"決算データの取得失敗が{len(failed)}銘柄あり、検証を中止しました")
+
+
 def run_research(refresh: bool = False, now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     ctx, data_log = build_context(refresh=refresh, now=now)
+    check_earnings_coverage(data_log["earnings_failed"])
     evaluated = [evaluate(st, ctx) for st in STRATEGIES]
     reg = update_registry(evaluated)
     n_trials = len(reg)

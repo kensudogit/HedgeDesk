@@ -272,6 +272,14 @@ def test_tick_skips_equity_jobs_on_weekend(monkeypatch):
     assert calls == [["crypto"]]
 
 
+def test_tick_health_reports_a_stopped_container():
+    assert desk._tick_health(NOW)["healthy"] is False  # ログなし
+    with open(C.STATE / "tick.log", "w", encoding="utf-8") as f:
+        f.write(json.dumps({"ts": "2026-11-09T13:55:00+00:00"}) + "\n")
+    assert desk._tick_health(NOW) == {"healthy": True, "last_tick_utc": "2026-11-09T13:55:00+00:00", "age_minutes": 5.0}
+    assert desk._tick_health(datetime(2026, 11, 9, 15, 0, tzinfo=timezone.utc))["healthy"] is False
+
+
 def test_tick_is_skipped_while_another_is_running(monkeypatch):
     """Windowsタスクとコンテナの二重起動で、同じ処理を2回走らせない。"""
     called = []

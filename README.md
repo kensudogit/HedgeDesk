@@ -8,16 +8,19 @@
 
 | エージェント | 実体 | 動くタイミング |
 |---|---|---|
-| Chief of Staff | Claudeの定期タスク | 毎朝07:15、日曜10:00 |
+| Chief of Staff | `brief.py`、`scheduler.py` | 毎朝07:15、日曜10:00 |
 | Scout | `scout.py` | 30分ごと |
 | Chart Analyst | `analyst.py`、`indicators.py` | 米国株の引け後、暗号資産はUTC 00:05 |
-| Strategist | `research.py` をClaudeの定期タスクが起動 | 毎晩21:00 |
+| Strategist | `research.py` | 毎晩21:00 |
 | Risk Officer | `risk.py` | シグナルの直後と、米国の寄付き前 |
 | Trader | `trader.py`（発注に触れる唯一のモジュール） | 寄付きの15分前、暗号資産はシグナルの直後 |
 
 ## できること、できないこと
 
-- 動くのはPCとClaudeアプリの起動中だけです。ノートPCを閉じても動かすには、常時稼働のサーバーが必要です。
+- 動くのはPCとDocker Desktopの起動中だけです。Claudeアプリは不要です。ノートPCを閉じても動かすには、常時稼働のサーバーが必要です。
+- スリープなどで時刻を過ぎた調査やブリーフは、起きたときに1回だけ遅れて実行します。5分ごとの処理の抜けは取り戻しません。
+- ブリーフはテンプレートで作り、AIもWeb検索も使いません。`briefs/` に保存し、サービス画面で読めます。通知は届きません。
+- CPIなどの日程は自動で更新されません。今後のCPI日程がなくなると、ブリーフが警告し、新規ローンチを止めます。`state/events_manual.json` に出典付きで追記してください。
 - Alpacaのキーがなければ、発注は一切行いません。約定を作り出すこともありません。
 - 発注まわりは模擬のHTTPでテストしただけで、**Alpacaの実環境では未検証**です。
 - 基準を通った戦略がなければ、ペーパーでも取引しません。
@@ -50,20 +53,17 @@ Python 3.12と固定した依存パッケージで動きます。データはこ
 |---|---|---|
 | `ui` | サービス画面。データは読み取り専用 | 既定で起動 |
 | `tick` | 5分ごとの処理（Scout、監視、シグナル、Trader） | `--profile tick` |
+| `jobs` | 夜間リサーチ、モーニングブリーフ、週次レビュー | `--profile tick` |
 | `desk` | 調査などの手動コマンド | `--profile tools` |
 | `test` | テスト | `--profile test` |
 
-サービス画面を起動します。
+すべてのサービスを起動します。
 
 ```bash
-docker compose up -d --build ui
+docker compose --profile tick up -d --build
 ```
 
-止めます。
-
-```bash
-docker compose down
-```
+**Docker Desktopの自動起動を有効にしてください。** Settings の General にある「Start Docker Desktop when you sign in」です。オフのままだと、PCを再起動してもコンテナは動き出しません。止まっているとサービス画面も見られないので、モーニングブリーフの `tick_health` で停止を報告します。
 
 テストを実行します。
 
@@ -83,26 +83,9 @@ docker compose --profile tools run --rm desk python -m hedgedesk research --refr
 $env:COMPOSE_BAKE="false"; $env:DOCKER_CONTEXT="desktop-linux"
 ```
 
-### 5分ごとの処理をコンテナに移す
-
-今はWindowsタスク `HedgeDeskTick` が動いています。**運用はどちらか一方にしてください。** 同時実行はロックで防いでいますが、ログの追跡が難しくなります。
-
-先にWindowsタスクを削除します。
-
-```bash
-schtasks /Delete /TN HedgeDeskTick /F
-```
-
-コンテナで起動します。
-
-```bash
-docker compose --profile tick up -d --build tick
-```
-
 ### Dockerで解決しないこと
 
 - PCがスリープするとコンテナも止まります。24時間動かすには常時稼働のサーバーが必要です。
-- 夜間リサーチ、ブリーフ、週次レビューはClaudeの定期タスクなので、コンテナには入りません。
 - 自動で再起動するのは、Docker Desktopが動いているときだけです。
 - サービス画面には認証がありません。`docker-compose.yml` のポート設定を変えて、インターネットに直接公開しないでください。
 
@@ -134,13 +117,13 @@ python -m pytest -q
 
 ## 止め方
 
-5分ごとの実行を止めます。
+すべてのサービスを止めます。
 
 ```bash
-schtasks /Delete /TN HedgeDeskTick /F
+docker compose --profile tick down
 ```
 
-調査とブリーフの定期タスクは、Claudeアプリのスケジュール画面で止められます。
+以前の定期タスク（`hedgedesk-strategist-nightly`、`hedgedesk-morning-brief`、`hedgedesk-weekly-review`）はClaudeアプリで停止してあります。再び有効にするなら、二重に実行されないよう `jobs` コンテナを止めてください。
 
 ## TradingViewの指標
 
