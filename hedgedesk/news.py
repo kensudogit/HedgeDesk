@@ -317,6 +317,14 @@ def _describe_error(ex: Exception) -> str:
     return f"{hints.get(name, 'API呼び出しに失敗しました')}（{name}）"
 
 
+# 見出しの中身と関係なく起きる失敗（キー・権限・混雑・通信・モデル名）。これらは見出しごとの失敗回数に数えない。
+# 数えると、キーの誤りや一時的な障害だけで、その回の見出しが MAX_ATTEMPTS に達して二度と分析されなくなるため。
+ACCOUNT_ERRORS = frozenset({
+    "AuthenticationError", "PermissionDeniedError", "RateLimitError", "APIConnectionError",
+    "APITimeoutError", "NotFoundError", "InternalServerError", "OverloadedError", "ServiceUnavailableError",
+})
+
+
 def analyze_pending(items: list[dict], now: datetime, client=None) -> dict:
     """未分析の見出しを AI に送り、結果を news_analysis.jsonl に追記する。
 
@@ -376,6 +384,10 @@ def analyze_pending(items: list[dict], now: datetime, client=None) -> dict:
         except Exception as ex:  # 1回の失敗で tick 全体を止めない。理由だけ残して次の回に任せる
             failed_reason = _describe_error(ex)
             resp = None
+            if type(ex).__name__ in ACCOUNT_ERRORS:
+                # 見出しのせいではないので回数を数えず、残りのバッチも送らない（同じ理由で失敗するため）。
+                errors.append(failed_reason)
+                break
         got: dict[str, dict] = {}
         if failed_reason is None:
             ids = {it["id"] for it in batch}

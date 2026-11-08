@@ -159,7 +159,26 @@ def test_api_error_is_recorded_without_secret(monkeypatch):
     res = news.analyze_pending(items, NOW, fake_client(AuthenticationError("bad key sk-ant-SECRET-VALUE")))
     assert res["status"] == "error" and "APIキーが無効です" in res["errors"][0]
     for name in ("news_runs.json", "news_analysis.jsonl"):
-        assert "SECRET" not in (C.STATE / name).read_text(encoding="utf-8")
+        p = C.STATE / name
+        assert not p.exists() or "SECRET" not in p.read_text(encoding="utf-8")
+
+
+def test_account_errors_do_not_use_up_attempts():
+    """キーの誤りなど見出しと関係ない失敗は、見出しの失敗回数に数えず、残りのバッチも送らない。"""
+    class AuthenticationError(Exception):
+        pass
+
+    write_scout([headline(f"https://x/{i}", 1) for i in range(news.BATCH_SIZE + 1)])
+    items, _ = news.load_items(NOW)
+    for _ in range(news.MAX_ATTEMPTS + 1):
+        client = fake_client(AuthenticationError("bad"), AuthenticationError("bad"))
+        assert news.analyze_pending(items, NOW, client)["status"] == "error"
+        assert len(client.beta.messages.calls) == 1
+    assert all("attempts" not in r for r in news.load_analyses().values())
+    # キーを直せば、同じ見出しがまだ分析の対象に残っている。
+    client = fake_client(AuthenticationError("still bad"))
+    news.analyze_pending(items, NOW, client)
+    assert len(client.beta.messages.calls[0]["messages"][0]["content"]) > 0
 
 
 def test_key_is_read_from_env_file(monkeypatch, tmp_path):
