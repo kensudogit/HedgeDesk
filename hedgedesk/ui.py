@@ -4,6 +4,11 @@
 - GETのみ。発注、キルスイッチ解除、設定変更の機能は持たない。
 - ニュースの見出しなど外部の文字列は、画面側で textContent としてのみ表示する。
 """
+#
+# 【位置付け】ui コンテナで `python -m hedgedesk ui` として常駐する。state/ と journal/ と briefs/ を読み取り専用で読み、
+#   書き込むのは refresh.request による「今すぐ更新」の依頼ファイル（requests/）だけ。
+# 【エンドポイント】GET / （画面の HTML）、GET /api/status （画面に出す JSON）、POST /api/refresh （調査のやり直し依頼）。
+# 【主な依存先】標準ライブラリの http.server、config、journal、refresh、risk、scout、trader（キーの有無と保有台帳の読み取りのみ）。
 from __future__ import annotations
 
 import json
@@ -17,9 +22,12 @@ from . import journal, refresh, risk, scout, trader
 # 既定はこのPCのみ。コンテナの中でだけ 0.0.0.0 にし、公開範囲は Compose 側で 127.0.0.1 に絞る。
 # この画面に認証はないので、インターネットへ直接公開しないこと。
 HOST = os.environ.get("HEDGEDESK_UI_HOST", "127.0.0.1")
+# 待ち受けポート（固定）。ホスト側の公開ポートは Compose の HEDGEDESK_UI_PORT で変えられる。
+# TICK_STALE_SECONDS: 最終 tick からこの秒数（10分）を超えたら、画面で「停止の可能性」と表示する。
 PORT = 8765
 TICK_STALE_SECONDS = 600
 
+# 画面の「スケジュール」表に出す説明用の一覧。実際の時刻は desk._tick と scheduler の定数で決まる（ここは表示だけ）。
 SCHEDULE = [
     {"job": "Scout（ニュース収集）", "when": "30分ごと", "runner": "tickコンテナ"},
     {"job": "キルスイッチ監視、約定確認", "when": "5分ごと", "runner": "tickコンテナ"},
@@ -33,6 +41,7 @@ SCHEDULE = [
 
 
 def _read_json(path, default=None):
+    """JSON ファイルを読む。存在しない・読めない・壊れている場合は default（画面は表示を続ける）。"""
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -40,6 +49,7 @@ def _read_json(path, default=None):
 
 
 def _last_tick() -> dict | None:
+    """tick.log の最終行（最後の tick の記録）を返す。ログがなければ None。"""
     path = C.STATE / "tick.log"
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
@@ -49,6 +59,10 @@ def _last_tick() -> dict | None:
 
 
 def _strategy_row(r: dict) -> dict:
+    """調査レポートの1戦略を、画面の「戦略の順位」表の1行分に縮める。
+
+    stress_better は「遅延ストレスのほうが通常より良い」不自然な結果の印で、画面で「要確認」と表示する。
+    """
     oos, stress = r["out_of_sample"], r["stress_late_double_slip"]
     return {
         "id": r["id"], "name": r["name"], "score": r["score"]["total"], "oos_sharpe": oos["sharpe"], "dsr": r["deflated_sharpe"],
@@ -58,6 +72,7 @@ def _strategy_row(r: dict) -> dict:
 
 
 def _latest_brief() -> dict | None:
+    """briefs/ の最新のブリーフ（ファイル名の日付順で最後）の名前と本文。なければ None。"""
     files = sorted(C.BRIEFS.glob("*.md")) if C.BRIEFS.exists() else []
     if not files:
         return None
@@ -66,6 +81,9 @@ def _latest_brief() -> dict | None:
 
 def status(now: datetime | None = None) -> dict:
     """画面に出す内容をまとめる。キーの値は含めない。"""
+    # 引数: now は表示上の現在時刻（tick の経過秒数の計算に使う）。
+    # 戻り値: 画面の JavaScript がそのまま描画する dict。ジャーナルは最新15件、見出しは最新12件を新しい順に並べる。
+    # alpaca_keys はキーがあるかどうかの真偽値だけ。キーの値やブローカーへの問い合わせ結果は含めない。
     now = now or datetime.now(timezone.utc)
     tick = _last_tick()
     age = None
@@ -99,6 +117,15 @@ def status(now: datetime | None = None) -> dict:
     }
 
 
+# 画面の HTML・CSS・JavaScript（1ファイル完結。外部の CDN を読まない）。
+# 文字列の中身はそのままブラウザに送られるので、コメントは文字列の外（ここ）に書いている。
+# JavaScript の要点:
+#   - 15秒ごとに /api/status を取得して再描画する（load と setInterval）。
+#   - 値はすべて textContent か DOM の要素作成で表示し、HTML として解釈させない。ニュースの見出しなど外部の文字列が
+#     スクリプトとして動かないようにするため（tests/test_ui.py が innerHTML などの不使用を検査している）。
+#   - リンクは http(s) で始まるものだけを a 要素にし、target=_blank には rel="noopener noreferrer" を付ける。
+#   - 「今すぐ更新」は独自ヘッダー X-HedgeDesk-Action を付けて POST する（do_POST の CSRF 対策と対になっている）。
+#   - ダークモードは prefers-color-scheme で CSS 変数を切り替える。
 PAGE = """<!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>HedgeDesk</title>
@@ -182,7 +209,9 @@ load();setInterval(load,15000);
 
 
 class Handler(BaseHTTPRequestHandler):
+    """サービス画面の HTTP ハンドラー。ThreadingHTTPServer がリクエストごとにスレッドで生成する。"""
     def _send(self, code: int, body: bytes, ctype: str) -> None:
+        """応答を送る。Cache-Control: no-store で、古い状況がブラウザのキャッシュから表示されないようにする。"""
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
@@ -191,6 +220,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):  # noqa: N802
+        # パスは完全一致で判定する。state/ のファイルを直接返すような経路は作らない（それ以外は404）。
         if self.path == "/":
             self._send(200, PAGE.encode("utf-8"), "text/html; charset=utf-8")
         elif self.path == "/api/status":
@@ -212,16 +242,20 @@ class Handler(BaseHTTPRequestHandler):
             self._send(403, b"forbidden", "text/plain")
             return
         origin = self.headers.get("Origin")
+        # Origin が付いていれば、Host と同じ（同じ画面から送られた）ことを確かめる。独自ヘッダーと合わせた二重の防御。
         if origin and origin.split("://", 1)[-1] != self.headers.get("Host"):
             self._send(403, b"forbidden", "text/plain")
             return
         research = _read_json(C.STATE / "latest_research.json") or {}
         code, body = refresh.request(research.get("as_of_utc"))
+        # 直近の調査時刻を渡して、10分以内の連続依頼を refresh.request 側で断る（429）。
         self._send(code, json.dumps(body, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
 
     def log_message(self, *args):
+        # 既定ではアクセスごとに標準エラーへログを出すが、15秒ごとのポーリングでログが埋まるので出さない。
         pass
 
 
 def serve() -> None:
+    """HOST:PORT でサーバーを起動し、止められるまで戻らない。"""
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()

@@ -3,6 +3,16 @@
 tick は判断にLLMを使わないので、常時稼働のサーバーでもそのまま動く。
 時刻はニューヨーク時間とUTCで判定するので、夏時間の切り替えでずれない。
 """
+#
+# 【位置付け】tick コンテナ（`python -m hedgedesk loop`）や Windows タスク（run_tick.pyw）が tick() を呼ぶ。
+#   brief_data / weekly_review は jobs コンテナの brief.write_brief / write_weekly から呼ばれる。
+# 【1日の流れ（NY 時間、平日）】
+#   08:45〜09:15 保留中の株の計画を再審査 → 09:15〜11:00 発注 → 09:20〜11:00 手仕舞い予約の実行
+#   15:50〜16:15 未約定の新規を取り消し → 16:15 以降 確定足でシグナル判定と審査（発注は翌朝）
+#   暗号資産は UTC 00:05 以降に1日1回、取り消し・シグナル・発注・手仕舞いをまとめて行う。
+# 【主な依存先】analyst、risk、trader、events、scout、journal、config。
+# 【状態ファイル】state/ticks.json（ジョブごとの最終実行キー）、state/approved_plans.json（承認済みの計画）、
+#   state/tick.lock（同時実行防止）、state/tick.log（実行ログ。ブリーフと画面の生存確認に使う）。
 from __future__ import annotations
 
 import json
@@ -20,21 +30,29 @@ from . import analyst, config as C, events, journal, risk, scout, trader
 NY = ZoneInfo("America/New_York")
 TICKS = C.STATE / "ticks.json"
 APPROVED = C.STATE / "approved_plans.json"
+# ロックがこの秒数より古ければ、異常終了で残ったものとみなして片付ける（30分。通常の tick はこれより十分短い）。
+# TICK_STALE_MINUTES: 最後の tick からこの分数を超えたら、ブリーフで「停止の可能性」と報告する。
 LOCK_STALE_SECONDS = 1800
 TICK_STALE_MINUTES = 15
 
 
 def _load(path, default):
+    """JSON ファイルを読む。ファイルがなければ default を返す。"""
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else default
 
 
 def _save(path, value):
+    """JSON を上書き保存する（state/ がなければ作る）。日付などは default=str で文字列にする。"""
     C.STATE.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
 
 
 def _book_state(broker) -> tuple[float, float, set[str]]:
     """審査に使う資金、保有中のリスク、保有銘柄。"""
+    # 引数: broker は AlpacaPaper。キーがあれば口座の資産を使い、なければ想定資金 CAPITAL を使う。
+    # 戻り値: (資金, 保有・発注中のリスク合計（ドル）, 保有・発注中の銘柄の集合)。
+    # 未約定（working）の計画も、約定すればリスクになるので含める。約定済みなら実際の約定価格と数量、未約定なら指値と計画数量で計算する。
+    # max(0, …) は、約定価格がストップより下になった場合に、負のリスクで枠が増えないようにするため。
     book = trader._load_positions()
     held = {r["symbol"] for r in book.values()}
     open_risk = sum(max(0.0, r.get("entry_price", r["limit"]) - r["stop"]) * r.get("filled_qty", r["qty"]) for r in book.values())
@@ -44,6 +62,11 @@ def _book_state(broker) -> tuple[float, float, set[str]]:
 
 def job_signals(asset_classes: set[str], now: datetime, submit_now: bool, broker=None) -> dict:
     """Chart Analyst → Risk Officer。暗号資産はそのまま発注、株は寄付き前まで保留。"""
+    # 引数: asset_classes は対象の資産クラス、now は判定時刻、submit_now は承認後すぐ発注するか（暗号資産だけ True）。
+    # 戻り値: 承認・拒否の件数と発注結果。チャンピオンなし・休場などのときは analyst.run の status を返す（ctx は除く）。
+    # 副作用: 承認済みの計画を approved_plans.json に保存（株は "equity"、暗号資産は "crypto" のキー）。
+    #   承認が出たら未ローンチのチャンピオンをローンチ済みにし、保有中の手仕舞い予約も判定する。
+    # 株の計画を引け後すぐに発注しないのは、翌朝の寄付き前に最新の状況（キルスイッチ、イベント、保有）で再審査するため。
     broker = broker or trader.AlpacaPaper()
     out = analyst.run(asset_classes, now)
     if out["status"] != "ok":
@@ -55,6 +78,7 @@ def job_signals(asset_classes: set[str], now: datetime, submit_now: bool, broker
     store[plans_key] = approved
     _save(APPROVED, store)
     if approved and not out["champion"].get("launched"):
+        # 最初に承認が出た時点を「ローンチ」とする。以後はイベントの関門を通さない（risk.review を参照）。
         champ = dict(out["champion"], launched=True, launched_utc=now.isoformat(timespec="seconds"))
         _save(analyst.CHAMPION, champ)
     sent = trader.submit(approved, broker) if submit_now else []
@@ -64,6 +88,9 @@ def job_signals(asset_classes: set[str], now: datetime, submit_now: bool, broker
 
 def _manage_exits(out: dict, asset_classes: set[str], broker) -> None:
     """保有本数の上限とシグナルで手仕舞い予約を判定する。ストップは別に常時有効。"""
+    # 引数: out は analyst.run の結果（ctx と champion を使う）、asset_classes は対象、broker はキーの有無の確認用。
+    # 副作用: 保有台帳の bars_held と exit_due（time / signal）を更新する。実際の売りは翌日の job_exits が行う。
+    # バックテストと同じく「判定は引け後、執行は翌日の寄付き」。最低保有本数に達するまではシグナルでは手仕舞わない。
     if not broker.available:
         return
     book = trader._load_positions()
@@ -83,6 +110,16 @@ def _manage_exits(out: dict, asset_classes: set[str], broker) -> None:
 
 
 def job_exits(asset_classes: set[str], broker=None) -> int:
+    """手仕舞い予約（exit_due）のある保有を手仕舞う。
+
+    Args:
+        asset_classes: 対象の資産クラス。broker: 省略時は AlpacaPaper。
+
+    Returns:
+        手仕舞い注文を出した件数。キーがなければ0。
+
+    副作用: trader.exit_position で売り注文を出し、二重に売らないよう台帳に exit_sent を付ける。
+    """
     broker = broker or trader.AlpacaPaper()
     n = 0
     if not broker.available:
@@ -99,6 +136,10 @@ def job_exits(asset_classes: set[str], broker=None) -> int:
 
 def job_preopen_recheck(now: datetime, broker=None) -> dict:
     """寄付き前の再審査: 保留中の計画をもう一度 Risk Officer に通す。"""
+    # 引数: now は判定時刻、broker は省略時に AlpacaPaper。
+    # 戻り値: 承認・拒否の件数。保留中の計画がなければ {"status": "nothing"}。
+    # 前回の承認ハッシュ（approval）を外してから審査し直す。数量も最新の資金で計算し直す。
+    # 副作用: approved_plans.json の "equity" を再審査で承認されたものだけに置き換える。
     broker = broker or trader.AlpacaPaper()
     store = _load(APPROVED, {})
     plans = store.get("equity", [])
@@ -112,6 +153,12 @@ def job_preopen_recheck(now: datetime, broker=None) -> dict:
 
 
 def job_submit_equity(broker=None) -> dict:
+    """再審査済みの株の計画を発注し、保留リストを空にする。
+
+    Returns:
+        {"sent": trader.submit の結果}。
+    副作用: 発注の成否にかかわらず保留リストを空にする（同じ計画を翌日以降に持ち越さない。指値の有効期限1日）。
+    """
     store = _load(APPROVED, {})
     plans = store.get("equity", [])
     sent = trader.submit(plans, broker) if plans else []
@@ -121,6 +168,7 @@ def job_submit_equity(broker=None) -> dict:
 
 
 def _due(state: dict, name: str, key: str) -> bool:
+    """ジョブ name の最終実行キーが key と違えば、まだ実行していない（実行すべき）とみなす。"""
     return state.get(name) != key
 
 
@@ -131,6 +179,7 @@ def _acquire_lock() -> bool:
     for _ in range(2):
         try:
             os.close(os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+                # O_EXCL 付きの作成は「なければ作る」を原子的に行う。既にあれば FileExistsError になり、二重起動を防げる。
             return True
         except FileExistsError:
             try:
@@ -138,12 +187,16 @@ def _acquire_lock() -> bool:
                     return False
                 path.unlink()  # 異常終了で残ったロックは片付けて、もう一度だけ試す
             except FileNotFoundError:
+                # 確認している間に別のプロセスがロックを消した。もう一度作成を試す。
                 pass
     return False
 
 
 def tick(now: datetime | None = None, broker=None) -> dict:
     """5分ごとの処理の入口。別の tick が実行中なら何もしない。"""
+    # 引数: now は処理時刻（テスト用）、broker は省略時に AlpacaPaper。
+    # 戻り値: 実行したジョブの結果（_tick の戻り値）。ロック中なら {"status": "skipped_locked"}。
+    # 例外が起きてもロックは finally で必ず消す。
     if not _acquire_lock():
         return {"status": "skipped_locked"}
     try:
@@ -167,6 +220,9 @@ def run_loop(interval_seconds: int = 300, max_iterations: int | None = None, sle
 
 def _tick(now: datetime | None = None, broker=None) -> dict:
     """各ジョブは1日1回（Scoutは30分ごと）だけ実行する。"""
+    # 引数・戻り値: tick と同じ。戻り値は {"ts": 時刻, "ran": ジョブ名 → 結果} で、tick.log にも1行追記する。
+    # 時刻の窓は NY 時間で判定するので、夏時間の切り替えでも米国市場の時刻に合う。暗号資産だけ UTC の日付で区切る。
+    # 窓の幅を持たせているのは、PC のスリープなどで5分ごとの実行が遅れても、その日のうちに1回は実行するため。
     now = now or datetime.now(timezone.utc)
     ny = now.astimezone(NY)
     state = _load(TICKS, {})
@@ -176,6 +232,7 @@ def _tick(now: datetime | None = None, broker=None) -> dict:
     ran = {}
 
     def run(name, key, fn):
+        """ジョブ name を、キー key（日付）につき1回だけ実行する。例外は記録して次のジョブへ進む。"""
         if not _due(state, name, key):
             return
         state[name] = key  # 失敗しても同じ日に繰り返し発注しないよう、先に記録する
@@ -188,6 +245,7 @@ def _tick(now: datetime | None = None, broker=None) -> dict:
 
     last_scout = state.get("scout_ts")
     if not last_scout or now - datetime.fromisoformat(last_scout) >= timedelta(minutes=30):
+        # Scout は30分ごと。失敗しても他のジョブを止めず、次の30分後に再試行する（先に時刻を記録するため）。
         state["scout_ts"] = now.isoformat(timespec="seconds")
         _save(TICKS, state)
         try:
@@ -196,6 +254,7 @@ def _tick(now: datetime | None = None, broker=None) -> dict:
             ran["scout"] = f"error: {type(ex).__name__}"
 
     ran["monitor"] = trader.monitor(broker, now)
+    # 見回り（キルスイッチ・約定確認・暗号資産のストップ）は毎回実行する。
 
     t = ny.time()
     if weekday and time(8, 45) <= t < time(9, 15):
@@ -210,6 +269,8 @@ def _tick(now: datetime | None = None, broker=None) -> dict:
         run("signals_equity", today_ny, lambda: job_signals({"etf", "stock"}, now, False, broker))
     if now.time() >= time(0, 5):
         run("signals_crypto", today_utc, lambda: (trader.cancel_unfilled("crypto", broker, 23.0, now), job_signals({"crypto"}, now, True, broker), job_exits({"crypto"}, broker))[1])
+        # 暗号資産: 前日の未約定の新規を取り消し（23時間以上前の注文だけ）→ シグナル判定と即発注 → 手仕舞い予約の実行。
+        # タプルで3つを順に実行し、結果としてはシグナルの結果（[1]）だけを記録する。
 
     log_line = {"ts": now.isoformat(timespec="seconds"), "ran": ran}
     with open(C.STATE / "tick.log", "a", encoding="utf-8") as f:
@@ -219,6 +280,9 @@ def _tick(now: datetime | None = None, broker=None) -> dict:
 
 def market_snapshot() -> dict:
     """ブリーフ用の市場データ。計算した値だけを返す。"""
+    # 戻り値: 主要 ETF・暗号資産の終値・前日比・21営業日騰落率・200日線との位置・出来高倍率・スコアと、
+    #   VIX、出来高が20日平均の2倍以上の銘柄の一覧。
+    # 副作用: build_context でデータを取り直す（refresh=True）。
     from .research import build_context
 
     ctx, log = build_context(refresh=True)
@@ -235,6 +299,7 @@ def market_snapshot() -> dict:
             "above_sma200": bool(last["close"] > last["sma200"]),
             "volume_vs_avg20": round(float(last["volume"] / last["vol_avg20"]), 2) if last["vol_avg20"] else None,
             "score": None if last["score"] != last["score"] else int(last["score"]),
+            # NaN は自分自身と等しくならない性質を使って、スコアが NaN（判定不能）なら None にしている。
         }
     unusual = []
     for s in C.STOCKS + C.ETFS:
@@ -247,6 +312,8 @@ def market_snapshot() -> dict:
 
 def _tick_health(now: datetime) -> dict:
     """5分処理の生存確認。コンテナが止まっていると、画面もログも更新されないので、ブリーフで報告する。"""
+    # 引数: now は判定時刻。
+    # 戻り値: healthy（最終実行から TICK_STALE_MINUTES 以内か）、last_tick_utc、age_minutes。ログがなければ healthy=False。
     try:
         lines = (C.STATE / "tick.log").read_text(encoding="utf-8").splitlines()
         last = json.loads(lines[-1])["ts"]
@@ -258,6 +325,10 @@ def _tick_health(now: datetime) -> dict:
 
 def brief_data(now: datetime | None = None) -> dict:
     """Chief of Staff がブリーフを書くための材料を1つのJSONにまとめる。"""
+    # 引数: now は作成時刻。ジャーナルは直近24時間分を読む。
+    # 戻り値: ブリーフの材料の dict（brief.render が読む）。
+    # 副作用: state/brief_data.json に保存する（画面のイベント表示にも使われる）。市場データとイベントをネットワークから取得する。
+    # ニュースの見出しは scout_headlines_untrusted という名前で入れ、外部データだと分かるようにしている（ブリーフ本文には使わない）。
     now = now or datetime.now(timezone.utc)
     since = (now - timedelta(hours=24)).isoformat(timespec="seconds")
     rows = journal.read(since)
@@ -294,6 +365,11 @@ def brief_data(now: datetime | None = None) -> dict:
 
 def weekly_review(now: datetime | None = None, seed: int = C.MC_SEED) -> dict:
     """ペーパーとバックテストを比較して、昇格の階段の位置を判定する。"""
+    # 引数: now は判定時刻、seed はブートストラップの乱数シード（結果を再現できるよう固定）。
+    # 戻り値: rung（昇格の段階）と、判定に使った値（ペーパーのトレード数・日数・平均R・90%信頼区間・整合の有無）。
+    # 副作用: reports/weekly_<日付>.json に保存し、ジャーナルに記録する。ライブ移行の判断と実行はしない（オーナーの役目）。
+    # 段階: no_champion → not_launched → paper_under_2_weeks → insufficient_data →
+    #   eligible_for_owner_decision（整合あり）または does_not_match_backtest（整合なし）。
     now = now or datetime.now(timezone.utc)
     champ = analyst.load_champion()
     latest = _load(C.STATE / "latest_research.json", None)
@@ -320,6 +396,8 @@ def weekly_review(now: datetime | None = None, seed: int = C.MC_SEED) -> dict:
             # バックテストの1トレード分布が手元にないので、期待値と標準偏差の推定はペーパー側で行う
             rng = np.random.default_rng(seed)
             boots = [rng.choice(r, size=r.size, replace=True).mean() for _ in range(C.MC_RUNS)]
+            # ペーパーの R を復元抽出して平均を取り直し（ブートストラップ）、平均 R の 90% 信頼区間を作る。
+            # バックテストの平均 R がこの区間に入っていれば「ペーパーはバックテストと整合している」とみなす。
             lo, hi = np.percentile(boots, [5, 95])
             result["paper_ci90"] = [round(float(lo), 3), round(float(hi), 3)]
             matches = lo <= top["out_of_sample"]["expectancy_r"] <= hi

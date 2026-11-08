@@ -1,1 +1,2 @@
+# テストだけに使うパッケージ（本番イメージには入れない。Dockerfile の test ステージで requirements.lock に追加して入れる）。
 pytest==8.3.4

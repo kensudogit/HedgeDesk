@@ -6,6 +6,10 @@
 # このPCはDockerネットワークの空きが少ないので、新しいネットワークを作らず既定のbridgeを使う。
 name: hedgedesk
 
+# 全サービス共通の設定（YAML のアンカー）。各サービスは `<<: *base` で取り込む。
+#   read_only / tmpfs: コンテナのファイルシステムを読み取り専用にし、書けるのは /tmp とホームの一時領域とボリュームだけにする。
+#   cap_drop: ALL / no-new-privileges: Linux の特権をすべて外し、権限の昇格もさせない（侵害時の被害を小さくする）。
+#   env_file の required: false: .env がなくても起動する（キーなしでは発注しないだけ）。
 x-base: &base
   image: hedgedesk:local
   build:
@@ -24,6 +28,7 @@ x-base: &base
   security_opt:
     - no-new-privileges:true
 
+# tick / jobs / desk が書き込むホスト側のフォルダ。ui は書き込み用には使わない（ui の volumes を参照）。
 x-writable-data: &writable-data
   - ./state:/app/state
   - ./journal:/app/journal
@@ -41,6 +46,7 @@ services:
       HEDGEDESK_UI_HOST: 0.0.0.0
     ports:
       - "127.0.0.1:${HEDGEDESK_UI_PORT:-8765}:8765"
+      # ホスト側は 127.0.0.1 にだけ公開する。コンテナ内は 0.0.0.0 で待ち受けるが、PC の外からは届かない。
     volumes:
       - ./state:/app/state:ro
       - ./journal:/app/journal:ro
@@ -49,6 +55,7 @@ services:
       - ./requests:/app/requests
     restart: unless-stopped
     healthcheck:
+      # /api/status が応答するかを1分ごとに確認する（Docker Desktop の画面で稼働状態が分かるように）。
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8765/api/status', timeout=8)"]
       interval: 60s
       timeout: 10s
@@ -78,6 +85,7 @@ services:
     volumes: *writable-data
 
   # テスト。データもキーも渡さない。
+    # テストのコンテナにはボリュームもキーも渡さない（本物の状態やキーに触れない）。
   test:
     image: hedgedesk:test
     build:

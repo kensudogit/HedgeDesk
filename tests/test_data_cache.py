@@ -2,6 +2,10 @@
 
 2026-11-07 の不具合: 価格の保存先が1つのファイルに上書きされ、VIXの中身がXOMの株価になっていた。
 """
+#
+# 【対象】hedgedesk/data.py（キャッシュ、取得ごとの揺れの吸収 stabilize、VIX の検査、指紋）と research の中止条件・再現性。
+# 【方針】yfinance は sys.modules に偽物を差し込み、ネットワークに出ない。銘柄ごとに価格水準を変え（LEVELS）、
+#   取り違えがあればすぐ分かるようにしている。
 import sys
 import types
 from datetime import datetime, timezone
@@ -15,11 +19,13 @@ from hedgedesk import data as D
 from hedgedesk.research import evaluate
 from hedgedesk.strategies import STRATEGIES
 
+# NOW: キャッシュの日付スタンプ（20261107）を決める基準時刻。LEVELS: 銘柄ごとの一定の価格（取り違えの検出用）。
 NOW = datetime(2026, 11, 7, 3, 0, tzinfo=timezone.utc)
 LEVELS = {"AAA": 100.0, "ZZZ": 400.0, "^VIX": 20.0}
 
 
 def _raw(symbols):
+    """yfinance.download の戻り値を模した、(銘柄, 項目) の MultiIndex 列を持つ30営業日分のデータを作る。"""
     idx = pd.bdate_range("2024-01-01", periods=30)
     frames = {}
     for s in symbols:
@@ -30,6 +36,11 @@ def _raw(symbols):
 
 @pytest.fixture
 def fake_yahoo(tmp_path, monkeypatch):
+    """data.CACHE を一時ディレクトリに向け、yfinance を偽物に差し替える。
+
+    Returns:
+        download が呼ばれるたびに、要求された銘柄のリストを追加していくリスト（取得回数と対象の確認用）。
+    """
     monkeypatch.setattr(D, "CACHE", tmp_path / "cache")
     calls = []
 
@@ -42,12 +53,14 @@ def fake_yahoo(tmp_path, monkeypatch):
 
 
 def test_each_symbol_is_cached_in_its_own_file(fake_yahoo):
+    """銘柄ごとに別のファイルに保存され、中身がその銘柄の価格になっている（VIX 取り違えの再発防止）。"""
     D.load(["AAA", "ZZZ", "^VIX"], now=NOW)
     for s, level in LEVELS.items():
         assert pd.read_pickle(D._cache_path(s, "20261107"))["close"].iloc[-1] == level
 
 
 def test_second_load_uses_cache_and_returns_identical_data(fake_yahoo):
+    """同じ日の2回目はキャッシュを使い（取得は1回だけ）、同じ指紋のデータを返す。"""
     a, log_a = D.load(["AAA", "ZZZ", "^VIX"], now=NOW)
     b, log_b = D.load(["AAA", "ZZZ", "^VIX"], now=NOW)
     assert len(fake_yahoo) == 1
@@ -56,6 +69,7 @@ def test_second_load_uses_cache_and_returns_identical_data(fake_yahoo):
 
 
 def test_partial_cache_does_not_overwrite_other_symbols(fake_yahoo):
+    """キャッシュのある銘柄は取り直さず、ない銘柄だけを取得しても、既存のキャッシュは上書きされない。"""
     D.load(["^VIX"], now=NOW)
     D.load(["AAA", "ZZZ", "^VIX"], now=NOW)
     assert fake_yahoo[-1] == ["AAA", "ZZZ"]
@@ -63,6 +77,7 @@ def test_partial_cache_does_not_overwrite_other_symbols(fake_yahoo):
 
 
 def test_vix_check_rejects_a_stock_price():
+    """VIX らしい水準は通し、株価のような水準（中央値150）は ValueError で止める。"""
     good = pd.DataFrame({"close": [15.0, 20.0, 30.0]})
     D.check_vix(good)
     with pytest.raises(ValueError):
@@ -70,6 +85,7 @@ def test_vix_check_rejects_a_stock_price():
 
 
 def test_fingerprint_detects_a_changed_price():
+    """価格が1か所でも変われば指紋が変わり、同じデータなら同じ指紋になる。"""
     df = random_walk(1)[["open", "high", "low", "close", "volume"]]
     other = df.copy()
     other.iloc[5, 3] += 0.01
@@ -78,10 +94,12 @@ def test_fingerprint_detects_a_changed_price():
 
 
 def _prices(n=100):
+    """stabilize のテスト用の日足（data._adjust 後と同じ列）。"""
     return random_walk(5, n=n)[["open", "high", "low", "close", "volume", "dollar_volume"]]
 
 
 def test_tiny_jitter_keeps_previous_history():
+    """百万分の1未満の揺れなら、過去の足は前回の値を使い続け、直近5本だけ新しい値になる。"""
     old = _prices()
     new = old.copy()
     new[["open", "high", "low", "close"]] *= 1 + 8e-7
@@ -93,6 +111,7 @@ def test_tiny_jitter_keeps_previous_history():
 
 
 def test_dividend_adjustment_replaces_history():
+    """配当の調整（0.5%）のような本当の変化なら、過去も含めて新しい値にすべて置き換える。"""
     old = _prices()
     new = old.copy()
     new[["open", "high", "low", "close"]] *= 0.995
@@ -101,6 +120,7 @@ def test_dividend_adjustment_replaces_history():
 
 
 def test_correction_of_one_old_bar_is_accepted():
+    """過去の1本だけの訂正（1%）も本当の変化として受け入れる。"""
     old = _prices()
     new = old.copy()
     new.iloc[10, new.columns.get_loc("close")] *= 1.01
@@ -109,6 +129,7 @@ def test_correction_of_one_old_bar_is_accepted():
 
 
 def test_new_bars_are_appended_and_recent_bars_refreshed():
+    """新しい足は追加され、直近の足の訂正は「過去の変化」とみなさずに反映される。"""
     full = _prices(105)
     old, new = full.iloc[:100], full.copy()
     new.iloc[97, new.columns.get_loc("close")] *= 1.02  # 直近の足の訂正
@@ -118,12 +139,14 @@ def test_new_bars_are_appended_and_recent_bars_refreshed():
 
 
 def test_missing_history_replaces_snapshot():
+    """今回の取得で過去の足が欠けていたら（取得範囲の変化）、比較せず新しいデータをそのまま使う。"""
     old = _prices()
     out, changed = D.stabilize(old, old.iloc[30:])
     assert changed and len(out) == 70
 
 
 def test_refresh_with_jitter_gives_same_fingerprint(fake_yahoo, monkeypatch):
+    """取り直したデータに微小な揺れがあっても、過去の値が変わらず、history_changed も False になる。"""
     a, log_a = D.load(["AAA", "^VIX"], now=NOW)
     import yfinance
 
@@ -144,6 +167,7 @@ def test_html_parser_for_earnings_is_installed():
 
 
 def test_research_stops_when_earnings_are_mostly_missing():
+    """決算データの取得失敗が少数なら続行し、ほぼ全銘柄なら RuntimeError で調査を中止する。"""
     from hedgedesk import config as C
     from hedgedesk.research import check_earnings_coverage
 
@@ -154,6 +178,7 @@ def test_research_stops_when_earnings_are_mostly_missing():
 
 
 def test_evaluation_is_deterministic():
+    """同じデータで2回検証すると、結果（OOS リターンを含む）が完全に一致する（乱数や順序に依存しない）。"""
     from test_signals_and_metrics import synthetic_context
 
     st = next(s for s in STRATEGIES if s.id == "S6_VOL")

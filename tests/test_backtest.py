@@ -1,4 +1,8 @@
 """シミュレータが楽観的にならないことを確かめる。"""
+#
+# 【対象】hedgedesk/backtest.py の simulate。約定の条件、コスト、リスク上限、キルスイッチ、遅延の再現を検査する。
+# 【方針】手で作った数本の日足で、約定するか・いくらで約定するかを1つずつ確かめる。
+#   併せて乱数データで「コスト後に優位性が出ない」「資産と損益が一致する」など全体の整合も確かめる。
 import numpy as np
 import pandas as pd
 
@@ -6,28 +10,33 @@ from conftest import make_bars, make_signals, random_walk
 from hedgedesk import config as C
 from hedgedesk.backtest import Costs, simulate
 
+# FREE: コストなし（約定価格を正確に確かめるため）。FLAT: 100 前後で動かない足 [始値, 高値, 安値, 終値]。
 FREE = Costs(0, 0, 0)
 FLAT = [100, 101, 99, 100]
 
 
 def run(rows, entries, limit=100.0, stop=90.0, exits=(), costs=FREE, lag=0, max_hold=10):
+    """1銘柄 "X" の日足 rows とシグナルで simulate を実行する短縮形。期間は日足の先頭から最後まで。"""
     df = make_bars(rows)
     sig = make_signals(df, entries, exits, limit, stop, max_hold)
     return simulate({"X": df}, {"X": sig}, "2024-01-01", None, costs, lag=lag)
 
 
 def test_limit_only_touched_is_not_filled():
+    """安値が指値にちょうど触れただけ（100 = 100）では約定しない。"""
     res = run([FLAT, [101, 102, 100, 101], FLAT], [0], limit=100.0)
     assert len(res.trades) == 0
 
 
 def test_limit_fills_only_after_trading_through():
+    """安値が指値を下回れば約定し、価格は指値（始値が指値より上なので）。"""
     res = run([FLAT, [101, 102, 99.5, 101], FLAT, FLAT], [0], limit=100.0)
     assert len(res.trades) == 1
     assert res.trades.iloc[0]["entry"] == 100.0
 
 
 def test_order_expires_after_one_day():
+    """指値の有効期限は1日。翌日に約定しなければ、その後に下がっても約定しない。"""
     res = run([FLAT, [105, 106, 104, 105], [100, 100, 80, 95], [95, 96, 94, 95]], [0], limit=100.0, stop=70.0)
     assert len(res.trades) == 0
 
@@ -39,6 +48,7 @@ def test_signal_cannot_trade_its_own_bar():
 
 
 def test_gap_through_stop_fills_at_open_not_at_stop():
+    """窓開けでストップより下から始まったら、ストップ価格ではなく（より悪い）始値で決済される。"""
     rows = [FLAT, FLAT, FLAT, [70, 72, 68, 70], [70, 71, 69, 70]]
     res = run(rows, [0], limit=100.0, stop=90.0)
     t = res.trades.iloc[0]
@@ -48,6 +58,7 @@ def test_gap_through_stop_fills_at_open_not_at_stop():
 
 
 def test_same_bar_limit_and_stop_is_a_loss():
+    """約定した足でストップにも届いたら、損失として扱う（日足では順序が分からないので楽観しない）。"""
     rows = [FLAT, [100, 120, 85, 110], [110, 111, 109, 110]]
     res = run(rows, [0], limit=100.0, stop=90.0)
     t = res.trades.iloc[0]
@@ -56,6 +67,7 @@ def test_same_bar_limit_and_stop_is_a_loss():
 
 
 def test_max_hold_exits_next_open():
+    """最大保有本数に達したら時間切れで手仕舞う。"""
     rows = [FLAT] * 10
     res = run(rows, [0], limit=101.0, stop=90.0, max_hold=3)
     t = res.trades.iloc[0]
@@ -64,12 +76,16 @@ def test_max_hold_exits_next_open():
 
 
 def test_min_hold_delays_signal_exit():
+    """手仕舞いシグナルが毎日出ていても、最低保有本数までは持ち続ける。"""
     rows = [FLAT] * 8
     res = run(rows, [0], limit=101.0, stop=90.0, exits=[1, 2, 3, 4, 5, 6, 7])
     assert res.trades.iloc[0]["bars"] >= C.MIN_HOLD_BARS
 
 
 def test_every_trade_risk_within_limit_and_notional_cap():
+    """乱数データで、全トレードのリスク額と時価がそれぞれの上限内に収まる。"""
+    # リスク額の上限に3倍の余裕を持たせているのは、資産が増えると1トレードのリスク額も増えるため（開始資金基準の比較）。
+    # 時価の上限の 1.01 倍は、スリッページで約定価格がわずかに上がる分の許容。
     df = random_walk(1)
     limit = df["close"]
     stop = df["close"] * 0.97
@@ -81,6 +97,7 @@ def test_every_trade_risk_within_limit_and_notional_cap():
 
 
 def test_open_risk_cap_limits_concurrent_positions():
+    """同じ日に12銘柄でシグナルが出ても、合計リスクの上限で同時保有は5本までになる。"""
     market, signals = {}, {}
     for k in range(12):
         df = make_bars([[100, 101, 99, 100]] * 8)
@@ -91,6 +108,7 @@ def test_open_risk_cap_limits_concurrent_positions():
 
 
 def test_costs_reduce_results():
+    """コストを入れると最終資産が減る（コストが計算に効いていることの確認）。"""
     df = random_walk(2)
     sig = make_signals(df, list(range(250, 850, 5)), [], df["close"] * 1.002, df["close"] * 0.97, max_hold=5)
     cheap = simulate({"X": df}, {"X": sig}, "2018-01-01", None, FREE, apply_kill=False)
@@ -113,6 +131,7 @@ def test_random_entries_have_no_edge_after_costs():
 
 
 def test_kill_switch_pauses_new_orders():
+    """3連敗でキルスイッチが作動し、その後しばらく新規が止まるので、作動なしよりトレード数が減る。"""
     # 毎回ストップにかかる下落が3回続く
     rows = []
     for _ in range(6):
@@ -135,6 +154,7 @@ def test_equity_reconciles_with_trades():
 
 
 def test_lag_delays_order_by_one_bar():
+    """1本遅れの設定では、注文が1日遅れて出る（通常では約定しない並びでも、遅れた日に約定する）。"""
     rows = [FLAT, [105, 106, 104, 105], [101, 102, 99.5, 100], FLAT]
     on_time = run(rows, [0], limit=100.0)
     late = run(rows, [0], limit=100.0, lag=1)

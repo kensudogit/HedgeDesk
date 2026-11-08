@@ -1,14 +1,26 @@
 """コマンド入口: python -m hedgedesk <research|brief|brief-data|tick|loop|jobs|weekly|scout|status|ui|reset-kill>"""
+#
+# 【役割】`python -m hedgedesk <サブコマンド>` の入口。引数を見て各モジュールの関数を呼び分ける。
+# 【位置付け】Docker Compose の各サービス（ui / tick=loop / jobs）と手動操作の両方がここを通る。
+# 【主な依存先】config。各サブコマンドのモジュールは、そのコマンドが選ばれたときだけ関数内で import する
+#   （ui コンテナで pandas / yfinance を読み込まずに済ませ、起動を速く、依存を最小にするため）。
+# 【注意】上のモジュール docstring は、不明なコマンドのときに使い方として print(__doc__) で表示される。
 import json
 import sys
 
 from . import config as C
 
 
+# 引数: なし（sys.argv を直接読む。第1引数がサブコマンド、"--refresh" や "--stdout" はフラグ）。
+# 戻り値: プロセスの終了コード。成功は0、不明なサブコマンドは2。
+# 副作用: サブコマンドに応じて、調査の実行、state/ や journal/ への書き込み、HTTP サーバーの起動などを行う。
+# 例外: 各処理の例外はここでは捕まえず、そのまま呼び出し元（プロセス）に伝える。
 def main() -> int:
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
+    # Windows のコンソール（cp932）でも日本語の JSON を文字化けや UnicodeEncodeError なしで出すため。
     sys.stdout.reconfigure(encoding="utf-8")
     if cmd == "research":
+        # 夜間リサーチを手動で実行し、要点だけを JSON で表示する（全文は state/latest_research.json）。
         from .research import run_research
 
         rep = run_research(refresh="--refresh" in sys.argv)
@@ -18,41 +30,51 @@ def main() -> int:
             "untested": [{"id": r["id"], "failures": r["failures"]} for r in rep["untested"]],
         }, ensure_ascii=False, indent=1, default=str))
     elif cmd == "brief-data":
+        # ブリーフの材料だけを作って state/brief_data.json に保存し、そのパスを表示する。
         from .desk import brief_data
 
         brief_data()
         print(C.STATE / "brief_data.json")
     elif cmd == "tick":
+        # 5分ごとの処理を1回だけ実行する（Windows タスクやデバッグ用）。
         from .desk import tick
 
         print(json.dumps(tick(), ensure_ascii=False, default=str))
     elif cmd == "loop":
+        # tick コンテナ用: tick を5分間隔で繰り返す常駐ループ。
         from .desk import run_loop
 
         run_loop()
     elif cmd == "jobs":
+        # jobs コンテナ用: 夜間リサーチ・ブリーフ・週次レビューを時刻どおりに動かす常駐ループ。
         from .scheduler import run_loop as jobs_loop
 
         jobs_loop()
     elif cmd == "brief":
+        # --stdout なら保存せずに本文を表示し、なければ briefs/ に保存してパスを表示する。
         from .brief import render, write_brief
         from .desk import brief_data
 
         print(render(brief_data()) if "--stdout" in sys.argv else write_brief())
     elif cmd == "weekly":
+        # 週次レビュー（ペーパーとバックテストの整合）を実行して結果を表示する。
         from .desk import weekly_review
 
         print(json.dumps(weekly_review(), ensure_ascii=False, indent=1, default=str))
     elif cmd == "scout":
+        # ニュース見出しの収集を1回実行する。
         from .scout import collect
 
         print(json.dumps(collect(), ensure_ascii=False))
     elif cmd == "ui":
+        # 読み取り専用のサービス画面を起動する。serve() は戻らない（Ctrl+C かコンテナ停止まで動く）。
         from .ui import HOST, PORT, serve
 
         print(f"http://{HOST}:{PORT}", flush=True)
         serve()
     elif cmd == "reset-kill":
+        # キルスイッチの解除。DESK_RULES 上、解除できるのはオーナーだけなので、画面や自動処理からは呼ばれない。
+        # 解除の事実はジャーナルに残す（誰がいつ解除したかを後から確認できるように）。
         from . import journal
         from .risk import KILL_FILE
 
@@ -61,6 +83,7 @@ def main() -> int:
         journal.log("kill_reset", "Owner", note="オーナーが解除")
         print("kill switch reset")
     elif cmd == "status":
+        # 現在の状態の要約。alpaca_keys はキーの有無（真偽値）だけで、キーの値は表示しない。
         from . import analyst, risk, trader
 
         print(json.dumps({
