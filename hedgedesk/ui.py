@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import config as C
-from . import journal, risk, scout, trader
+from . import journal, refresh, risk, scout, trader
 
 # 既定はこのPCのみ。コンテナの中でだけ 0.0.0.0 にし、公開範囲は Compose 側で 127.0.0.1 に絞る。
 # この画面に認証はないので、インターネットへ直接公開しないこと。
@@ -95,6 +95,7 @@ def status(now: datetime | None = None) -> dict:
         "journal": rows[-15:][::-1],
         "headlines": scout.recent(12, now)[::-1],
         "brief": _latest_brief(),
+        "refresh": refresh.state(),
     }
 
 
@@ -117,13 +118,15 @@ th{font-size:12px;font-weight:600;color:var(--mute);white-space:nowrap}tr:last-c
 .stat{display:grid;grid-template-columns:minmax(150px,220px) auto 1fr;gap:6px 12px;align-items:baseline}.stat .why{color:var(--mute);font-size:13px}
 .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}.two section{margin:0}.two{margin-bottom:16px}
 .fail{font-size:13px;color:var(--mute);margin-top:2px}a{color:inherit}pre{white-space:pre-wrap;word-break:break-word;margin:0;font:inherit;font-size:14px}
+.head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:6px 12px;margin-bottom:10px}.head h2{margin:0}.act{display:flex;align-items:center;gap:10px}
+button{font:inherit;font-size:14px;font-weight:600;padding:5px 14px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}button:hover:not(:disabled){border-color:var(--mute)}button:disabled{opacity:.55;cursor:default}
 details summary{cursor:pointer;font-weight:650}details[open] summary{margin-bottom:10px}
 @media (max-width:560px){.stat{grid-template-columns:1fr auto}.stat .why{grid-column:1/-1;margin-bottom:6px}}
 </style></head><body><main>
 <header><h1>HedgeDesk</h1><span class="mute" id="updated"></span></header>
 <p class="lead" id="lead">読み込み中です</p>
 <section><h2>稼働状況</h2><div class="stat" id="stat"></div></section>
-<section><h2>戦略の順位 <span class="mute" id="research"></span></h2><div class="scroll"><table id="strat"></table></div><p class="mute" id="stratnote"></p></section>
+<section><div class="head"><h2>戦略の順位 <span class="mute" id="research"></span></h2><span class="act"><span class="mute" id="refreshmsg"></span><button id="refresh" type="button">今すぐ更新</button></span></div><div class="scroll"><table id="strat"></table></div><p class="mute" id="stratnote"></p></section>
 <div class="two">
 <section><h2>今後のイベント</h2><div class="scroll"><table id="events"></table></div><p class="mute" id="eventsnote"></p></section>
 <section><h2>スケジュール</h2><div class="scroll"><table id="sched"></table></div></section>
@@ -131,7 +134,7 @@ details summary{cursor:pointer;font-weight:650}details[open] summary{margin-bott
 <section><h2>最近のジャーナル</h2><div class="scroll"><table id="journal"></table></div></section>
 <section><h2>最近の見出し <span class="mute">外部データ。Deskの見解ではありません</span></h2><div class="scroll"><table id="news"></table></div></section>
 <section><details><summary id="briefname">最新のブリーフ</summary><pre id="brief"></pre></details></section>
-<p class="mute">読み取り専用の画面です。ここから発注や設定変更はできません。検証データであり、投資助言ではありません。</p>
+<p class="mute">この画面からできる操作は「今すぐ更新」（調査のやり直し）だけです。発注や設定変更はできません。検証データであり、投資助言ではありません。</p>
 </main>
 <script>
 const $=id=>document.getElementById(id);
@@ -147,7 +150,7 @@ function jsum(r){if(r.kind==='research')return r.IDEA+'：'+r.NEXT_STEP;if(r.kin
 function render(s){
  const champ=s.champion,kill=s.kill_switch&&s.kill_switch.active,canTrade=champ&&s.alpaca_keys&&!kill;
  $('lead').textContent=kill?'キルスイッチが作動中です。新規の取引は止まっています。':canTrade?'ペーパートレードの稼働条件が揃っています。':!s.tick_healthy?'定期実行が止まっている可能性があります。':'調査は稼働中です。取引はしていません。'+(champ?'Alpacaのキーが未設定です。':'基準を通った戦略がありません。');
- $('updated').textContent='更新 '+jst(s.now_utc)+' JST（30秒ごとに更新）';
+ $('updated').textContent='更新 '+jst(s.now_utc)+' JST（15秒ごとに更新）';
  $('stat').replaceChildren();
  row('5分ごとの定期実行',s.tick_healthy?'稼働中':'停止の可能性',s.tick_healthy?'ok':'bad','最終実行 '+jst(s.last_tick)+' JST');
  row('チャンピオン',champ?champ.id:'なし',champ?'ok':'off',champ?'スコア '+champ.score:'基準を通った戦略がないため、取引しません');
@@ -156,6 +159,7 @@ function render(s){
  row('保有・発注中',s.open_book.length+'件',s.open_book.length?'warn':'off','');
  const issues=Object.entries(s.data_issues||{});
  row('データの不備',issues.length?issues.length+'銘柄':'なし',issues.length?'warn':'ok',issues.map(([k,v])=>k+'：'+v.join('、')).join(' / '));
+ const rf=s.refresh||{};$('refresh').disabled=!!(rf.pending||rf.running);$('refreshmsg').textContent=rf.running?'調査を実行中です（数分かかります）':rf.pending?'更新を受け付けました。jobsコンテナが1分以内に開始します':'';
  $('research').textContent=s.research_as_of?jst(s.research_as_of)+' JST 時点、累計'+s.n_trials+'試行、合格'+s.passed_ids.length+'本':'';
  table($('strat'),[['戦略'],['判定'],['スコア',1],['OOSシャープ',1],['デフレートSR',1],['トレード',1],['最大DD',1],['OOS損益',1],['遅延ストレス',1]],s.strategies.map(r=>{const n=el('div');n.append(el('div',r.name));if(!r.passed)n.append(el('div',r.failures.join(' / '),'fail'));const st=el('span',usd(r.stress_pnl));if(r.stress_better)st.append(' ',el('span','要確認','badge warn'));return[n,el('span',r.passed?'合格':'不合格','badge '+(r.passed?'ok':'off')),r.score+'/25',r.oos_sharpe.toFixed(2),r.dsr.toFixed(2),r.trades,pct(r.max_dd),usd(r.net_pnl),st]}));
  $('stratnote').textContent='合格ライン: スコア18以上、デフレートSR 0.50以上など。遅延ストレスは1本遅れ＋スリッページ2倍の損益で、通常より良い場合は検査の不具合を疑います。'+(s.blocked.length?' 未検証: '+s.blocked.map(b=>b.name).join('、')+'。':'');
@@ -167,7 +171,13 @@ function render(s){
  if(s.brief){$('briefname').textContent='最新のブリーフ（'+s.brief.name+'）';$('brief').textContent=s.brief.text}
 }
 async function load(){try{const r=await fetch('/api/status');render(await r.json())}catch(e){$('lead').textContent='状況を取得できません。サーバーが止まっている可能性があります。'}}
-load();setInterval(load,30000);
+async function requestRefresh(){const b=$('refresh');b.disabled=true;$('refreshmsg').textContent='送信中です';
+ try{const r=await fetch('/api/refresh',{method:'POST',headers:{'X-HedgeDesk-Action':'refresh'}});const j=await r.json();
+  $('refreshmsg').textContent=r.status===202?'更新を受け付けました。jobsコンテナが1分以内に開始します':j.status==='too_soon'?'前回の調査から10分以内です。あと約'+Math.ceil(j.retry_after_seconds/60)+'分お待ちください':j.status==='already_requested'?'すでに更新中です':'更新を受け付けられませんでした';
+ }catch(e){$('refreshmsg').textContent='送信に失敗しました'}
+ if(document.visibilityState!=='hidden')setTimeout(load,1500);setTimeout(()=>{if(!$('refreshmsg').textContent.includes('中'))b.disabled=false},3000)}
+$('refresh').addEventListener('click',requestRefresh);
+load();setInterval(load,15000);
 </script></body></html>"""
 
 
@@ -188,6 +198,26 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, body, "application/json; charset=utf-8")
         else:
             self._send(404, b"not found", "text/plain")
+
+    def do_POST(self):  # noqa: N802
+        """「今すぐ更新」だけを受け付ける。
+
+        ほかのサイトに置かれたフォームやスクリプトから押されないよう、独自ヘッダーを必須にする。
+        独自ヘッダー付きの送信はブラウザが事前確認するが、この画面はそれを許可しないので、他サイトからは届かない。
+        """
+        if self.path != "/api/refresh":
+            self._send(404, b"not found", "text/plain")
+            return
+        if self.headers.get("X-HedgeDesk-Action") != "refresh" or int(self.headers.get("Content-Length") or 0) > 1024:
+            self._send(403, b"forbidden", "text/plain")
+            return
+        origin = self.headers.get("Origin")
+        if origin and origin.split("://", 1)[-1] != self.headers.get("Host"):
+            self._send(403, b"forbidden", "text/plain")
+            return
+        research = _read_json(C.STATE / "latest_research.json") or {}
+        code, body = refresh.request(research.get("as_of_utc"))
+        self._send(code, json.dumps(body, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
 
     def log_message(self, *args):
         pass

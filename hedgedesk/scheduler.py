@@ -15,7 +15,7 @@ from typing import Callable
 from zoneinfo import ZoneInfo
 
 from . import config as C
-from . import journal
+from . import journal, refresh
 
 JST = ZoneInfo("Asia/Tokyo")
 RESEARCH_AT = time(21, 0)
@@ -73,14 +73,14 @@ def run_due(now: datetime | None = None, runners: dict[str, Callable[[], str]] |
     """予定を過ぎたジョブを実行する。初回は基準を記録するだけで、次の予定時刻から動かす。"""
     now = now or datetime.now(timezone.utc)
     runners = runners or DEFAULT_RUNNERS
+    ran = _run_manual_refresh(now, runners)
     current = keys(now)
     path = _state_path()
     C.STATE.mkdir(parents=True, exist_ok=True)
     if not path.exists():
         path.write_text(json.dumps(current), encoding="utf-8")
-        return {"seeded": current}
+        return {**ran, "seeded": current}
     state = json.loads(path.read_text(encoding="utf-8"))
-    ran = {}
     for name in ("research", "brief", "weekly"):
         if state.get(name) == current[name]:
             continue
@@ -94,6 +94,23 @@ def run_due(now: datetime | None = None, runners: dict[str, Callable[[], str]] |
             ran[name] = "error"
             journal.log("job_error", "Chief of Staff", job=name, error=traceback.format_exc()[-800:])
     return ran
+
+
+def _run_manual_refresh(now: datetime, runners: dict[str, Callable[[], str]]) -> dict:
+    """サービス画面の「今すぐ更新」で置かれた依頼を処理する。定時の予定には影響しない。"""
+    refresh.clear_stale(now)
+    req = refresh.take(now)
+    if req is None:
+        return {}
+    try:
+        result = runners["research"]()
+        journal.log("job_done", "Chief of Staff", job="manual_research", result=result, requested_utc=req["requested_utc"])
+        return {"manual_research": result}
+    except Exception:
+        journal.log("job_error", "Chief of Staff", job="manual_research", error=traceback.format_exc()[-800:])
+        return {"manual_research": "error"}
+    finally:
+        refresh.finish()
 
 
 def run_loop(interval_seconds: int = 60, max_iterations: int | None = None, sleep=_time.sleep) -> None:

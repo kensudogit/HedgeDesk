@@ -6,6 +6,7 @@ STATE = ROOT / "state"
 CACHE = ROOT / "data" / "cache"
 REPORTS = ROOT / "reports"
 BRIEFS = ROOT / "briefs"
+REQUESTS = ROOT / "requests"  # サービス画面からの更新依頼（画面が書き込める唯一の場所）
 JOURNAL = ROOT / "journal" / "trade_journal.jsonl"
 
 # 資金とリスク（オーナー回答）

@@ -30,9 +30,10 @@ x-writable-data: &writable-data
   - ./reports:/app/reports
   - ./briefs:/app/briefs
   - ./data:/app/data
+  - ./requests:/app/requests
 
 services:
-  # サービス画面。データは読み取り専用で、このPCからしか見られない。
+  # サービス画面。データは読み取り専用で、このPCからしか見られない。書き込めるのは更新依頼だけ。
   ui:
     <<: *base
     command: ["python", "-m", "hedgedesk", "ui"]
@@ -44,6 +45,8 @@ services:
       - ./state:/app/state:ro
       - ./journal:/app/journal:ro
       - ./briefs:/app/briefs:ro
+      # 「今すぐ更新」の依頼を置く場所。画面が書き込めるのはここだけ
+      - ./requests:/app/requests
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8765/api/status', timeout=8)"]

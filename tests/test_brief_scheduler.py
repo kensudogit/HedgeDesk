@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from hedgedesk import brief, config as C, journal, scheduler
+from hedgedesk import brief, config as C, journal, refresh, scheduler
 
 JST = ZoneInfo("Asia/Tokyo")
 
@@ -161,3 +161,39 @@ def test_weekly_note_never_recommends_going_live(monkeypatch, tmp_path):
     monkeypatch.setattr(desk, "weekly_review", lambda now: {"rung": "eligible_for_owner_decision", "paper_trades": 40, "paper_expectancy_r": 0.1, "paper_ci90": [0.0, 0.2], "backtest_expectancy_r": 0.1, "matches_backtest": True})
     text = open(brief.write_weekly(NOW), encoding="utf-8").read()
     assert "判断と実行はオーナー" in text and brief.FOOTER in text
+
+
+def test_manual_refresh_runs_research_once_and_keeps_schedule(monkeypatch, tmp_path):
+    monkeypatch.setattr(C, "REQUESTS", tmp_path / "requests")
+    calls = []
+    r = recorder(calls)
+    scheduler.run_due(at(2026, 11, 7, 16), r)
+    assert refresh.request(None, at(2026, 11, 7, 16, 1))[0] == 202
+    res = scheduler.run_due(at(2026, 11, 7, 16, 2), r)
+    assert res == {"manual_research": "ok"} and calls == ["research"]
+    assert refresh.state() == {"pending": False, "running": False, "requested_utc": None, "started_utc": None}
+    scheduler.run_due(at(2026, 11, 7, 16, 3), r)
+    assert calls == ["research"]
+    scheduler.run_due(at(2026, 11, 7, 21, 0), r)  # 定時の調査は予定どおり動く
+    assert calls == ["research", "research"]
+    assert any(x.get("job") == "manual_research" for x in journal.read())
+
+
+def test_manual_refresh_failure_is_logged_and_cleared(monkeypatch, tmp_path):
+    monkeypatch.setattr(C, "REQUESTS", tmp_path / "requests")
+
+    def boom():
+        raise OSError("x")
+    refresh.request(None, at(2026, 11, 7, 16))
+    res = scheduler.run_due(at(2026, 11, 7, 16, 1), {"research": boom, "brief": lambda: "", "weekly": lambda: ""})
+    assert res["manual_research"] == "error"
+    assert not refresh.state()["running"]
+
+
+def test_stale_running_marker_is_cleared(monkeypatch, tmp_path):
+    monkeypatch.setattr(C, "REQUESTS", tmp_path / "requests")
+    refresh.request(None, at(2026, 11, 7, 16))
+    refresh.take(at(2026, 11, 7, 16, 1))
+    assert refresh.state()["running"]
+    refresh.clear_stale(at(2026, 11, 7, 18))
+    assert not refresh.state()["running"]
