@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from hedgedesk import config as C, journal, risk, trader
+from hedgedesk import config as C, journal, risk, scout, trader
 
 
 @pytest.fixture(autouse=True)
@@ -25,9 +25,13 @@ def isolated_state(tmp_path, monkeypatch):
     monkeypatch.setattr(trader, "FAILS", tmp_path / "fails.json")
     monkeypatch.setattr(trader, "ENV_FILE", tmp_path / "no.env")
     monkeypatch.setattr(C, "STATE", tmp_path)
+    # Scout の保存先は import 時に決まるので個別に差し替える（ニュース分析が本物の見出しを読まないように）。
+    monkeypatch.setattr(scout, "OUT", tmp_path / "scout")
     monkeypatch.delenv("APCA_API_KEY_ID", raising=False)
     monkeypatch.delenv("APCA_API_SECRET_KEY", raising=False)
     monkeypatch.delenv("APCA_API_BASE_URL", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("HEDGEDESK_NEWS_AI", raising=False)
 
 
 def make_bars(rows, start="2024-01-01"):

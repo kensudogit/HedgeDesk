@@ -62,7 +62,7 @@ services:
       retries: 3
       start_period: 10s
 
-  # 5分ごとの処理（Scout、監視、シグナル、Trader）。ペーパー口座のキーはここで使う。
+  # 5分ごとの処理（Scout、ニュース分析、監視、シグナル、Trader）。ペーパー口座のキーと、ニュース分析の ANTHROPIC_API_KEY はここで使う。
   tick:
     <<: *base
     profiles: ["tick"]

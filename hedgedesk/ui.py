@@ -2,13 +2,14 @@
 
 - 127.0.0.1 だけで待ち受ける。PCの外からは見えない。
 - GETのみ。発注、キルスイッチ解除、設定変更の機能は持たない。
-- ニュースの見出しなど外部の文字列は、画面側で textContent としてのみ表示する。
+- ニュースの見出しなど外部の文字列（AI による訳と理由を含む）は、画面側で textContent としてのみ表示する。
 """
 #
 # 【位置付け】ui コンテナで `python -m hedgedesk ui` として常駐する。state/ と journal/ と briefs/ を読み取り専用で読み、
 #   書き込むのは refresh.request による「今すぐ更新」の依頼ファイル（requests/）だけ。
 # 【エンドポイント】GET / （画面の HTML）、GET /api/status （画面に出す JSON）、POST /api/refresh （調査のやり直し依頼）。
 # 【主な依存先】標準ライブラリの http.server、config、journal、refresh、risk、scout、trader（キーの有無と保有台帳の読み取りのみ）。
+#   ニュース分析は news.py が書いた state/news_digest.json を読むだけ（AI の呼び出しは tick コンテナで行う）。
 from __future__ import annotations
 
 import json
@@ -30,6 +31,7 @@ TICK_STALE_SECONDS = 600
 # 画面の「スケジュール」表に出す説明用の一覧。実際の時刻は desk._tick と scheduler の定数で決まる（ここは表示だけ）。
 SCHEDULE = [
     {"job": "Scout（ニュース収集）", "when": "30分ごと", "runner": "tickコンテナ"},
+    {"job": "ニュース分析（翻訳・センチメント・重要度）", "when": "収集の直後", "runner": "tickコンテナ"},
     {"job": "キルスイッチ監視、約定確認", "when": "5分ごと", "runner": "tickコンテナ"},
     {"job": "株のシグナル判定と審査", "when": "米国の引け後（NY 16:15）", "runner": "tickコンテナ"},
     {"job": "株の再審査、発注", "when": "NY 08:45、09:15", "runner": "tickコンテナ"},
@@ -79,6 +81,21 @@ def _latest_brief() -> dict | None:
     return {"name": files[-1].name, "text": files[-1].read_text(encoding="utf-8")}
 
 
+# 画面に出すニュース分析の件数（news_digest.json には最大100件ある）。
+NEWS_LIMIT = 30
+
+
+def _news() -> dict | None:
+    """news.py が作った一覧を読み、画面用に件数を絞る。まだ作られていなければ None。
+
+    ここでは news.py を import しない（画面のコンテナで AI のクライアントや pandas を読み込まないため）。
+    """
+    d = _read_json(C.STATE / "news_digest.json")
+    if not d:
+        return None
+    return {**d, "items": (d.get("items") or [])[:NEWS_LIMIT]}
+
+
 def status(now: datetime | None = None) -> dict:
     """画面に出す内容をまとめる。キーの値は含めない。"""
     # 引数: now は表示上の現在時刻（tick の経過秒数の計算に使う）。
@@ -112,6 +129,7 @@ def status(now: datetime | None = None) -> dict:
         "schedule": SCHEDULE,
         "journal": rows[-15:][::-1],
         "headlines": scout.recent(12, now)[::-1],
+        "news": _news(),
         "brief": _latest_brief(),
         "refresh": refresh.state(),
     }
@@ -159,7 +177,8 @@ details summary{cursor:pointer;font-weight:650}details[open] summary{margin-bott
 <section><h2>スケジュール</h2><div class="scroll"><table id="sched"></table></div></section>
 </div>
 <section><h2>最近のジャーナル</h2><div class="scroll"><table id="journal"></table></div></section>
-<section><h2>最近の見出し <span class="mute">外部データ。Deskの見解ではありません</span></h2><div class="scroll"><table id="news"></table></div></section>
+<section><div class="head"><h2>ニュース分析 <span class="mute">外部データのAI分析。売買判断には使いません</span></h2><span class="mute" id="newsasof"></span></div><div class="stat" id="newsstat"></div><div class="scroll"><table id="newsai"></table></div><p class="mute" id="newsnote"></p></section>
+<section><details><summary>最近の見出し（原文） <span class="mute">外部データ。Deskの見解ではありません</span></summary><div class="scroll"><table id="news"></table></div></details></section>
 <section><details><summary id="briefname">最新のブリーフ</summary><pre id="brief"></pre></details></section>
 <p class="mute">この画面からできる操作は「今すぐ更新」（調査のやり直し）だけです。発注や設定変更はできません。検証データであり、投資助言ではありません。</p>
 </main>
@@ -174,6 +193,36 @@ function table(t,heads,rows){t.replaceChildren();const h=el('tr');heads.forEach(
 function row(name,label,cls,why){$('stat').append(el('span',name),el('span',label,'badge '+cls),el('span',why||'','why'))}
 const kinds={research:'検証',veto:'拒否',handoff:'受け渡し',order:'発注',fill_opened:'約定',fill_closed:'決済',kill_switch:'キルスイッチ',kill_reset:'キルスイッチ解除',owner_decision:'オーナー判断',champion:'チャンピオン',job_error:'エラー',order_not_sent:'未発注',weekly_review:'週次レビュー',no_session:'休場'};
 function jsum(r){if(r.kind==='research')return r.IDEA+'：'+r.NEXT_STEP;if(r.kind==='owner_decision')return r.decision;if(r.kind==='veto')return r.TICKER+'：'+(r.EVIDENCE||[]).join('、');if(r.kind==='kill_switch')return r.reason;if(r.TICKER)return r.TICKER+(r.IDEA?'：'+r.IDEA:'');return r.reason||r.job||r.action||''}
+const ago=s=>{if(!s)return null;const m=Math.floor((Date.now()-new Date(s).getTime())/60000);return m<0?null:m};
+const agoText=m=>m==null?'—':m<60?m+'分前':m<1440?Math.floor(m/60)+'時間前':Math.floor(m/1440)+'日前';
+function freshOf(m){return m==null?['時刻不明','off']:m<=360?['新鮮','ok']:m<=1440?['24時間以内','warn']:m<=4320?['古い','off']:['期限切れ','bad']}
+const sentCls={positive:'ok',negative:'bad',neutral:'off',mixed:'warn'};
+function sgn(v,d){return v==null?'—':(v>0?'+':'')+(v*100).toFixed(d??1)+'%'}
+function renderNews(n){
+ const st=$('newsstat');st.replaceChildren();const add=(a,b,c,d)=>st.append(el('span',a),el('span',b,'badge '+c),el('span',d||'','why'));
+ if(!n){$('newsasof').textContent='';add('ニュース分析','未作成','off','tickコンテナの次の収集（30分ごと）で作られます');table($('newsai'),[],[]);$('newsnote').textContent='';return}
+ const ai=n.ai||{},f=n.freshness||{},c=n.counts||{};
+ $('newsasof').textContent=jst(n.as_of_utc)+' JST 時点';
+ const aiLabel=!ai.configured?['未設定','off','ANTHROPIC_API_KEY がないため、翻訳とセンチメントは行っていません']:ai.last_status==='error'?['エラー','bad',(ai.last_errors||[]).join(' / ')]:ai.last_status==='partial'?['一部失敗','warn',(ai.last_errors||[]).join(' / ')]:['稼働中','ok','モデル '+ai.model+'、最終成功 '+jst(ai.last_success_utc)+' JST'];
+ add('AI分析',aiLabel[0],aiLabel[1],aiLabel[2]);
+ const sm=ago(f.scout_last_collected_utc),sStale=sm==null||sm>45;
+ add('ニュース収集',sStale?'停止の可能性':'稼働中',sStale?'bad':'ok','最終収集 '+agoText(sm)+'、最新の見出しの公開 '+agoText(ago(f.newest_published_utc)));
+ add('分析済み',(c.analyzed||0)+' / '+(c.total||0)+'件',c.pending?(f.analysis_stale?'warn':'off'):'ok',(c.pending?'未分析 '+c.pending+'件'+(f.analysis_stale?'（分析が遅れています）':''):'')+(c.expired_excluded?' 期限切れ（'+f.window_hours+'時間超）で除外 '+c.expired_excluded+'件':''));
+ const ps=f.price_stale_symbols||[];add('価格データ',ps.length?'古い銘柄あり':'最新',ps.length?'warn':'ok',ps.length?ps.join('、')+' の日足が古いため、価格反応は参考になりません':'Yahoo日足（夜間リサーチとブリーフで更新）');
+ table($('newsai'),[['重要度',1],['銘柄'],['見出し'],['センチメント'],['価格反応',1],['鮮度']],(n.items||[]).map(r=>{
+  const a=r.analysis,imp=r.importance,p=r.price||{};
+  const ic=imp?el('span',imp.total+' '+imp.label,'badge '+(imp.label==='高'?'bad':imp.label==='中'?'warn':'off')):el('span','未分析','badge off');
+  if(imp)ic.title='影響度 '+imp.components.impact+' / 方向 '+imp.components.sentiment+' / 関連 '+imp.components.relevance+' / 価格 '+imp.components.price+' × 鮮度 '+imp.freshness_weight;
+  const t=el('div');let head=a?a.title_ja:r.title;
+  if(/^https?:\\/\\//.test(r.link||'')){const l=el('a',head);l.href=r.link;l.target='_blank';l.rel='noopener noreferrer';t.append(l)}else t.append(el('span',head));
+  if(a){t.append(el('div',r.title,'fail'));t.append(el('div',a.category_label+'：'+a.reason_ja,'fail'))}else if(r.analysis_error)t.append(el('div','分析失敗：'+r.analysis_error,'fail'));
+  const se=a?el('span',a.sentiment_label+' '+(a.sentiment_score>0?'+':'')+a.sentiment_score.toFixed(2),'badge '+sentCls[a.sentiment]):el('span','—');
+  const pr=el('div');const why={pending:'公開後の足なし',no_time:'公開時刻不明',no_base:'公開前の足なし',no_data:'データなし'};
+  pr.append(el('div',p.status==='ok'?sgn(p.reaction)+(p.z!=null?'（'+p.z.toFixed(1)+'σ）':''):why[p.status]||'—'));
+  pr.append(el('div',(p.proxy?'市場全体の代わりに ':'')+(p.symbol||'')+(p.as_of?' '+p.as_of+' 終値':'')+(p.stale?'（古い）':''),'fail'));
+  const fm=ago(r.published_utc),fr=freshOf(fm),fc=el('div');fc.append(el('span',fr[0],'badge '+fr[1]),el('div',agoText(fm),'fail'));
+  return[ic,r.symbol||(a&&a.symbols.length?a.symbols.join(' '):'市場'),t,se,pr,fc]}));
+ $('newsnote').textContent=(n.notice||'')+' 重要度は、AIの影響度・方向の強さ・保有/対象銘柄との関連・公開後の値動き（日足、普段の何σか）を決まった式で点数にし、鮮度で割り引いたものです（重要度にカーソルを合わせると内訳）。翻訳とセンチメントはAIの出力で、誤りを含むことがあります。'}
 function render(s){
  const champ=s.champion,kill=s.kill_switch&&s.kill_switch.active,canTrade=champ&&s.alpaca_keys&&!kill;
  $('lead').textContent=kill?'キルスイッチが作動中です。新規の取引は止まっています。':canTrade?'ペーパートレードの稼働条件が揃っています。':!s.tick_healthy?'定期実行が止まっている可能性があります。':'調査は稼働中です。取引はしていません。'+(champ?'Alpacaのキーが未設定です。':'基準を通った戦略がありません。');
@@ -194,6 +243,7 @@ function render(s){
  $('eventsnote').textContent=s.events_as_of?'今後7日間。'+jst(s.events_as_of)+' JST 時点。':'イベント情報はまだありません。';
  table($('sched'),[['処理'],['タイミング'],['実行元']],s.schedule.map(x=>[x.job,x.when,x.runner]));
  table($('journal'),[['時刻(JST)'],['種類'],['担当'],['内容']],s.journal.map(r=>[jst(r.ts),kinds[r.kind]||r.kind,r.agent,jsum(r)]));
+ renderNews(s.news);
  table($('news'),[['銘柄'],['見出し'],['出所']],s.headlines.map(h=>{let t=h.title;if(/^https?:\\/\\//.test(h.link||'')){t=el('a',h.title);t.href=h.link;t.target='_blank';t.rel='noopener noreferrer'}return[h.symbol||'—',t,h.source]}));
  if(s.brief){$('briefname').textContent='最新のブリーフ（'+s.brief.name+'）';$('brief').textContent=s.brief.text}
 }

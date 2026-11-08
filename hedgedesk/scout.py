@@ -11,7 +11,9 @@ X（旧Twitter）はオーナーの判断で未接続。
 # 【主な依存先】requests、xml.etree（RSS の解析）、config、trader._load_positions（保有銘柄の一覧）。
 from __future__ import annotations
 
+import html
 import json
+import re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 
@@ -30,6 +32,11 @@ YAHOO = "https://feeds.finance.yahoo.com/rss/2.0/headline?s={sym}&region=US&lang
 OUT = C.STATE / "scout"
 
 
+def _plain(text: str) -> str:
+    """description の HTML タグを除き、文字参照を戻し、空白を詰める（表示と AI への入力用。HTML としては使わない）。"""
+    return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", text))).strip()
+
+
 def parse_rss(xml_bytes: bytes, source: str, symbol: str | None = None) -> list[dict]:
     """RSS 2.0 の XML から item ごとの見出しを取り出す。
 
@@ -38,7 +45,8 @@ def parse_rss(xml_bytes: bytes, source: str, symbol: str | None = None) -> list[
         source: 出所の表示名。symbol: 銘柄ごとのフィードなら銘柄、共通フィードなら None。
 
     Returns:
-        source / symbol / title / link / published の dict のリスト。title は300文字で切る（画面の表示崩れと容量対策）。
+        source / symbol / title / link / published / summary の dict のリスト。title は300文字、summary は500文字で切る
+        （画面の表示崩れと容量対策）。summary は RSS の description からタグを除いた本文で、ニュース分析（news.py）が AI に渡す。
 
     Raises:
         xml.etree.ElementTree.ParseError: XML として壊れている場合（collect でフィード単位の失敗として扱う）。
@@ -49,6 +57,7 @@ def parse_rss(xml_bytes: bytes, source: str, symbol: str | None = None) -> list[
         items.append({
             "source": source, "symbol": symbol, "title": (it.findtext("title") or "").strip()[:300],
             "link": (it.findtext("link") or "").strip(), "published": (it.findtext("pubDate") or "").strip(),
+            "summary": _plain(it.findtext("description") or "")[:500],
         })
     return items
 

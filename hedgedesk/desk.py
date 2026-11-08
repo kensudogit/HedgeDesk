@@ -10,7 +10,7 @@ tick は判断にLLMを使わないので、常時稼働のサーバーでもそ
 #   08:45〜09:15 保留中の株の計画を再審査 → 09:15〜11:00 発注 → 09:20〜11:00 手仕舞い予約の実行
 #   15:50〜16:15 未約定の新規を取り消し → 16:15 以降 確定足でシグナル判定と審査（発注は翌朝）
 #   暗号資産は UTC 00:05 以降に1日1回、取り消し・シグナル・発注・手仕舞いをまとめて行う。
-# 【主な依存先】analyst、risk、trader、events、scout、journal、config。
+# 【主な依存先】analyst、risk、trader、events、scout、news、journal、config。
 # 【状態ファイル】state/ticks.json（ジョブごとの最終実行キー）、state/approved_plans.json（承認済みの計画）、
 #   state/tick.lock（同時実行防止）、state/tick.log（実行ログ。ブリーフと画面の生存確認に使う）。
 from __future__ import annotations
@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 
-from . import analyst, config as C, events, journal, risk, scout, trader
+from . import analyst, config as C, events, journal, news, risk, scout, trader
 
 NY = ZoneInfo("America/New_York")
 TICKS = C.STATE / "ticks.json"
@@ -271,6 +271,14 @@ def _tick(now: datetime | None = None, broker=None) -> dict:
         run("signals_crypto", today_utc, lambda: (trader.cancel_unfilled("crypto", broker, 23.0, now), job_signals({"crypto"}, now, True, broker), job_exits({"crypto"}, broker))[1])
         # 暗号資産: 前日の未約定の新規を取り消し（23時間以上前の注文だけ）→ シグナル判定と即発注 → 手仕舞い予約の実行。
         # タプルで3つを順に実行し、結果としてはシグナルの結果（[1]）だけを記録する。
+
+    if "scout" in ran:
+        # ニュース分析（日本語訳・センチメント・重要度・価格反応）は Scout の収集の直後に行う。
+        # 発注のジョブを待たせないよう最後に回す。結果は画面用の参考情報で、ここより上のジョブには渡さない。
+        try:
+            ran["news"] = news.run(now)
+        except Exception as ex:
+            ran["news"] = f"error: {type(ex).__name__}"
 
     log_line = {"ts": now.isoformat(timespec="seconds"), "ran": ran}
     with open(C.STATE / "tick.log", "a", encoding="utf-8") as f:

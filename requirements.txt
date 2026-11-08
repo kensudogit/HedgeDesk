@@ -7,3 +7,5 @@ yfinance==1.4.1
 # yfinance の決算日取得に必要だが、yfinance の必須依存には含まれていない
 lxml==6.0.2
 tzdata==2025.3
+# ニュース分析（news.py）の Claude API クライアント。pydantic はこの依存として入り、AI の出力の型に使う。
+anthropic==2.6.0

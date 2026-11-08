@@ -1,4 +1,4 @@
-"""コマンド入口: python -m hedgedesk <research|brief|brief-data|tick|loop|jobs|weekly|scout|status|ui|reset-kill>"""
+"""コマンド入口: python -m hedgedesk <research|brief|brief-data|tick|loop|jobs|weekly|scout|news|status|ui|reset-kill>"""
 #
 # 【役割】`python -m hedgedesk <サブコマンド>` の入口。引数を見て各モジュールの関数を呼び分ける。
 # 【位置付け】Docker Compose の各サービス（ui / tick=loop / jobs）と手動操作の両方がここを通る。
@@ -66,6 +66,11 @@ def main() -> int:
         from .scout import collect
 
         print(json.dumps(collect(), ensure_ascii=False))
+    elif cmd == "news":
+        # ニュース分析を1回実行する。--no-ai なら AI を呼ばずに一覧（鮮度・価格反応）だけを作り直す。
+        from .news import run as news_run
+
+        print(json.dumps(news_run(use_ai="--no-ai" not in sys.argv), ensure_ascii=False, default=str))
     elif cmd == "ui":
         # 読み取り専用のサービス画面を起動する。serve() は戻らない（Ctrl+C かコンテナ停止まで動く）。
         from .ui import HOST, PORT, serve
