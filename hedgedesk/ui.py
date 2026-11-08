@@ -27,6 +27,8 @@ HOST = os.environ.get("HEDGEDESK_UI_HOST", "127.0.0.1")
 # TICK_STALE_SECONDS: 最終 tick からこの秒数（10分）を超えたら、画面で「停止の可能性」と表示する。
 PORT = 8765
 TICK_STALE_SECONDS = 600
+# 画面のロゴとファビコン（/logo.png で返す）。イメージには Dockerfile で public/PC.png だけをコピーする。
+LOGO = C.ROOT / "public" / "PC.png"
 
 # 画面の「スケジュール」表に出す説明用の一覧。実際の時刻は desk._tick と scheduler の定数で決まる（ここは表示だけ）。
 SCHEDULE = [
@@ -149,7 +151,7 @@ def status(now: datetime | None = None) -> dict:
 #     プロパティで数値だけを設定する（HTML を組み立てない）。
 PAGE = """<!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>HedgeDesk</title>
+<title>HedgeDesk</title><link rel="icon" type="image/png" href="/logo.png">
 <style>
 :root{color-scheme:dark;--bg:#070b14;--bg2:#0c1324;--panel:rgba(16,24,42,.74);--panel2:rgba(255,255,255,.028);--ink:#e6ecf5;--mute:#8d99ad;--line:rgba(148,163,184,.13);--line2:rgba(148,163,184,.26);--accent:#5eead4;--accent2:#818cf8;--ok:#4ade80;--okbg:rgba(74,222,128,.12);--bad:#fb7185;--badbg:rgba(251,113,133,.13);--warn:#fbbf24;--warnbg:rgba(251,191,36,.13);--off:#a3adbd;--offbg:rgba(148,163,184,.12);--shadow:0 1px 0 rgba(255,255,255,.05) inset,0 18px 40px -22px rgba(0,0,0,.8);--mono:"Cascadia Mono","JetBrains Mono",ui-monospace,Consolas,monospace}
 @media (prefers-color-scheme:light){:root{color-scheme:light;--bg:#eef2f8;--bg2:#f4f7fb;--panel:rgba(255,255,255,.8);--panel2:rgba(15,23,42,.025);--ink:#0f172a;--mute:#566174;--line:rgba(15,23,42,.09);--line2:rgba(15,23,42,.17);--accent:#0d9488;--accent2:#4f46e5;--ok:#15803d;--okbg:rgba(21,128,61,.1);--bad:#be123c;--badbg:rgba(190,18,60,.09);--warn:#a16207;--warnbg:rgba(202,138,4,.14);--off:#525c6c;--offbg:rgba(15,23,42,.06);--shadow:0 1px 2px rgba(15,23,42,.05),0 14px 34px -18px rgba(15,23,42,.22)}}
@@ -159,6 +161,8 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;ba
 .top{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--bg) 72%,transparent);-webkit-backdrop-filter:saturate(1.5) blur(14px);backdrop-filter:saturate(1.5) blur(14px);border-bottom:1px solid var(--line)}
 .top .in{max-width:1240px;margin:0 auto;padding:11px 20px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
 .brand{display:flex;align-items:center;gap:10px}
+img.logo{width:34px;height:34px;border-radius:10px;object-fit:cover;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);box-shadow:0 0 22px -6px var(--accent)}
+.logo[hidden]{display:none}
 .logo{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:conic-gradient(from 210deg,var(--accent),var(--accent2),var(--accent));color:#06101f;font:800 12px/1 var(--mono);box-shadow:0 0 26px -6px var(--accent)}
 h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.01em}
 .pill{font:600 11.5px/1 var(--mono);letter-spacing:.06em;padding:6px 10px;border-radius:999px;border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
@@ -218,7 +222,7 @@ details[open] summary::before{transform:rotate(45deg)}details[open] summary{marg
 @media (max-width:560px){main{padding:16px 16px 40px}.top .in{padding:10px 16px}.live{margin-left:0;width:100%}.hero,section{padding:16px}.head .mute{margin-left:0}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style></head><body>
-<header class="top"><div class="in"><div class="brand"><span class="logo" aria-hidden="true">HD</span><h1>HedgeDesk</h1></div><span class="pill">ペーパー取引のみ</span><span class="live"><span class="dot" id="dot"></span><span id="updated">接続中</span></span></div></header>
+<header class="top"><div class="in"><div class="brand"><img class="logo" id="logo" src="/logo.png" alt="" width="34" height="34"><span class="logo" id="logotext" aria-hidden="true" hidden>HD</span><h1>HedgeDesk</h1></div><span class="pill">ペーパー取引のみ</span><span class="live"><span class="dot" id="dot"></span><span id="updated">接続中</span></span></div></header>
 <main>
 <div class="hero" id="hero"><div class="eyebrow">デスクの状態</div><p class="lead" id="lead">読み込み中です</p><div class="tiles" id="stat"></div></div>
 <section><div class="head"><div><h2>戦略の順位</h2><span class="mute" id="research"></span></div><span class="act"><span class="mute" id="refreshmsg"></span><button id="refresh" type="button">今すぐ更新</button></span></div><div class="scroll"><table id="strat"></table></div><p class="mute" id="stratnote"></p></section>
@@ -310,6 +314,7 @@ async function requestRefresh(){const b=$('refresh');b.disabled=true;$('refreshm
  }catch(e){$('refreshmsg').textContent='送信に失敗しました'}
  if(document.visibilityState!=='hidden')setTimeout(load,1500);setTimeout(()=>{if(!$('refreshmsg').textContent.includes('中'))b.disabled=false},3000)}
 $('refresh').addEventListener('click',requestRefresh);
+$('logo').addEventListener('error',()=>{$('logo').hidden=true;$('logotext').hidden=false});
 load();setInterval(load,15000);
 </script></body></html>"""
 
@@ -329,6 +334,12 @@ class Handler(BaseHTTPRequestHandler):
         # パスは完全一致で判定する。state/ のファイルを直接返すような経路は作らない（それ以外は404）。
         if self.path == "/":
             self._send(200, PAGE.encode("utf-8"), "text/html; charset=utf-8")
+        elif self.path == "/logo.png":
+            # ロゴ画像。決まった1ファイルだけを返す（パスを組み立てないので、ほかのファイルは読めない）。
+            try:
+                self._send(200, LOGO.read_bytes(), "image/png")
+            except OSError:
+                self._send(404, b"not found", "text/plain")
         elif self.path == "/api/status":
             body = json.dumps(status(), ensure_ascii=False, default=str).encode("utf-8")
             self._send(200, body, "application/json; charset=utf-8")

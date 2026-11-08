@@ -22,6 +22,8 @@ WORKDIR /app
 # コードとルール文書だけをコピーする。tests/ は本番イメージに入れない。
 COPY hedgedesk ./hedgedesk
 COPY DESK_RULES.md ./
+# 画面のロゴ。public/ のほかのファイルは使わないので、この1枚だけをコピーする。
+COPY public/PC.png ./public/PC.png
 USER desk
 
 # 既定のコマンドは状態の表示だけ。実際のコマンドは Compose の各サービスで指定する。

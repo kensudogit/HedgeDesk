@@ -102,3 +102,17 @@ def test_unknown_path_is_404(server):
     with pytest.raises(HTTPError) as e:
         urlopen(server + "/state/kill.json")
     assert e.value.code == 404
+
+
+def test_logo_is_served_and_other_public_files_are_not(server, tmp_path, monkeypatch):
+    """/logo.png はロゴの PNG だけを返す。public/ のほかのファイルや、ロゴがない場合は 404。"""
+    with urlopen(server + "/logo.png") as r:
+        assert r.headers["Content-Type"] == "image/png" and r.read(8) == b"\x89PNG\r\n\x1a\n"
+    for path in ("/public/manifest.json", "/public/PC.png", "/logo.png/../.env"):
+        with pytest.raises(HTTPError) as e:
+            urlopen(server + path)
+        assert e.value.code == 404
+    monkeypatch.setattr(ui, "LOGO", tmp_path / "none.png")
+    with pytest.raises(HTTPError) as e:
+        urlopen(server + "/logo.png")
+    assert e.value.code == 404
