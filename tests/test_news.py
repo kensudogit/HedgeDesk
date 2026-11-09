@@ -362,6 +362,24 @@ def test_recap_caps_impact_and_old_analyses_stay_valid():
     assert "kind" in news.SYSTEM and news.NewsJudgement.model_fields["kind"].is_required()
 
 
+def test_track_counts_one_price_move_once():
+    """同じ銘柄・同じ基準日の見出しは、同じ値動きで採点されるので1件と数える（何度も数えて確からしく見せない）。"""
+    df = bars_until("2026-11-09", n=40)
+    closes = df.columns.get_loc("close")
+    i = df.index.get_loc(pd.Timestamp("2026-11-04"))
+    df.iloc[i + 1:, closes] = df.iloc[i, closes] * 0.97
+    pub = datetime(2026, 11, 4, 22, 0, tzinfo=timezone.utc)
+    rows = [_row(f"b{k}", -0.4, pub + timedelta(minutes=k), symbol="AAPL") for k in range(5)]
+    rows.append(_row("mixed", 0.3, pub, symbol="MSFT"))
+    rows.append(_row("mixed2", -0.6, pub, symbol="MSFT"))
+    news_track.record(rows, NOW)
+    h1 = news_track.evaluate(NOW, lambda s: df)["horizons"]["1"]
+    assert h1["n"] == 7 and h1["events"] == 2
+    d = h1["direction"]
+    assert d["n_headlines"] == 7 and d["n"] == 2 and d["hit_rate"] == 1.0   # AAPL 5件は1件。MSFT は平均 −0.15 で下落と一致
+    assert h1["by_score"]["n_each"] == 1
+
+
 def test_track_splits_direction_by_kind():
     """方向一致率は kind 別にも出す。解説記事を区別したことの効果を後から確かめるため。"""
     df = bars_until("2026-11-09", n=40)
@@ -385,11 +403,12 @@ def test_track_evaluates_direction_against_fixed_horizon():
     df.iloc[i + 1, closes] = df.iloc[i, closes] * 1.05
     df.iloc[i + 2:, closes] = df.iloc[i, closes] * 0.8
     pub = datetime(2026, 11, 4, 22, 0, tzinfo=timezone.utc)
-    news_track.record([_row("up", 0.7, pub), _row("down", -0.7, pub), _row("flat", 0.05, pub),
+    news_track.record([_row("up", 0.7, pub), _row("down", -0.7, pub, symbol="MSFT"), _row("flat", 0.05, pub, symbol="NVDA"),
                        _row("new", 0.7, NOW - timedelta(hours=1))], NOW)
     ev = news_track.evaluate(NOW, lambda s: df)
     h1 = ev["horizons"]["1"]
     assert h1["n"] == 3 and ev["pending"] == 1
+    assert h1["events"] == 3
     assert h1["direction"]["n"] == 2 and h1["direction"]["hit_rate"] == 0.5   # 方向の弱い flat は対象外
     assert h1["direction"]["by_kind"] == {"unknown": {"n": 2, "hit_rate": 0.5}}   # kind のない記録は unknown
     assert h1["enough"] is False

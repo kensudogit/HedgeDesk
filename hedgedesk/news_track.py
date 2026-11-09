@@ -99,7 +99,7 @@ def outcome(df, symbol: str, published: datetime, horizon: int, now: datetime) -
     rets = closes.iloc[max(0, b - SIGMA_BARS):b + 1].pct_change().dropna()
     sigma = float(rets.std()) if len(rets) >= 5 else float("nan")
     z = ret / (sigma * math.sqrt(horizon)) if math.isfinite(sigma) and sigma > 0 else None
-    return {"ret": ret, "z": z}
+    return {"ret": ret, "z": z, "base": str(df.index[b].date())}
 
 
 def _spearman(xs: list[float], ys: list[float]) -> float | None:
@@ -132,8 +132,10 @@ def evaluate(now: datetime, bars_loader) -> dict:
     """記録と値動きを突き合わせて集計する。
 
     Returns:
-        horizons: 本数ごとに n（答え合わせできた件数）、direction（方向一致率と対象件数）、
-        by_score（事前スコアの上位半分と下位半分の |z| の平均）、rank_corr（事前スコアと |z| の順位相関）、enough（件数が足りるか）。
+        horizons: 本数ごとに n（答え合わせできた見出しの件数）、events（そのうち別々の値動きの数）、
+        direction（方向一致率。n はイベント数、n_headlines は見出しの件数、by_kind は kind 別）、
+        by_score（事前スコアの上位半分と下位半分の |z| の平均。イベント単位）、rank_corr（事前スコアと |z| の順位相関）、
+        enough（イベント数が足りるか）。
         pending: まだ足が揃っていない件数。値はすべて計算値で、件数が少ない間は偶然の影響が大きい。
     """
     from .news import parse_time
@@ -158,26 +160,51 @@ def evaluate(now: datetime, bars_loader) -> dict:
                     pending += 1
                 continue
             pairs.append((r, o))
-        directional = [(r, o) for r, o in pairs if abs(r["sentiment_score"]) >= DIRECTION_MIN and o["ret"] != 0]
-        hits = sum(1 for r, o in directional if (r["sentiment_score"] > 0) == (o["ret"] > 0))
-        # kind 別の方向一致率（news-v1 の記録は kind がないので unknown に入る）。解説記事を区別する効果を確かめるため。
+        # 同じ銘柄・同じ基準日・同じ本数の見出しは、同じ1つの値動きで採点される。別々に数えると、
+        # 1つの値動きを何度も数えて一致率が実際より確からしく見えるので、値動き（イベント）1つを1件として集計する。
+        events: dict[tuple, list] = {}
+        for r, o in pairs:
+            events.setdefault((r["price_symbol"], o["base"]), []).append((r, o))
+
+        def vote(group):
+            """方向のはっきりした見出しのセンチメントの平均で、そのイベントの向きを決める。打ち消し合えば None。"""
+            ss = [r["sentiment_score"] for r, _ in group if abs(r["sentiment_score"]) >= DIRECTION_MIN]
+            ret = group[0][1]["ret"]
+            if not ss or ret == 0 or sum(ss) == 0:
+                return None
+            return (sum(ss) > 0) == (ret > 0)
+
+        def rate(groups):
+            votes = [v for v in (vote(g) for g in groups) if v is not None]
+            return {"n": len(votes), "hit_rate": round(sum(votes) / len(votes), 3) if votes else None}
+
+        direction = rate(events.values())
+        direction["n_headlines"] = sum(1 for r, o in pairs if abs(r["sentiment_score"]) >= DIRECTION_MIN and o["ret"] != 0)
+        # kind 別（news-v1 の記録は kind がないので unknown）。同じイベントの中でも kind ごとに分けて1件と数える。
         by_kind = {}
         for k in ("new", "recap", "unknown"):
-            sub = [(r, o) for r, o in directional if (r.get("kind") or "unknown") == k]
-            if sub:
-                k_hits = sum(1 for r, o in sub if (r["sentiment_score"] > 0) == (o["ret"] > 0))
-                by_kind[k] = {"n": len(sub), "hit_rate": round(k_hits / len(sub), 3)}
-        scored = [(r["pre_score"], abs(o["z"])) for r, o in pairs if o["z"] is not None]
+            groups = [[(r, o) for r, o in g if (r.get("kind") or "unknown") == k] for g in events.values()]
+            got = rate([g for g in groups if g])
+            if got["n"]:
+                by_kind[k] = got
+        direction["by_kind"] = by_kind
+        # 重要度の検証もイベント単位: 事前スコアはイベント内の最大（いちばん重要と判定した見出し）、値動きは共通の |z|。
+        scored = []
+        for g in events.values():
+            z = g[0][1]["z"]
+            if z is not None:
+                scored.append((max(r["pre_score"] for r, _ in g), abs(z)))
         scored.sort(key=lambda t: t[0])
         half = len(scored) // 2
         low, high = scored[:half], scored[len(scored) - half:] if half else []
         mean = (lambda v: round(sum(x for _, x in v) / len(v), 2) if v else None)
         result["horizons"][str(h)] = {
             "n": len(pairs),
-            "direction": {"n": len(directional), "hit_rate": round(hits / len(directional), 3) if directional else None, "by_kind": by_kind},
+            "events": len(events),
+            "direction": direction,
             "by_score": {"high_abs_z": mean(high), "low_abs_z": mean(low), "n_each": half},
             "rank_corr": _spearman([s for s, _ in scored], [z for _, z in scored]),
-            "enough": len(directional) >= MIN_SAMPLES,
+            "enough": direction["n"] >= MIN_SAMPLES,
         }
     result["pending"] = pending
     return result

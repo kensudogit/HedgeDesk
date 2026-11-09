@@ -292,7 +292,7 @@ tick ─ Scout       30分ごと FRB・Yahoo RSS
 <div class="gsec">DAILY · 画面の読み方</div>
 <div class="gcard"><div class="gk">STEP 4 · デスクの状態</div><ul><li><b>上部カードの色</b> — 緑：取引の条件が揃っている／赤：キルスイッチ作動か定期実行の停止／それ以外：調査だけで取引していない</li><li><b>5分ごとの定期実行</b> — 「停止の可能性」なら tick が動いていません</li><li><b>チャンピオン</b> — 基準を通った戦略。なしなら取引しません</li><li><b>保有・発注中</b>・<b>データの不備</b> — 件数と、日足が欠けている銘柄</li></ul></div>
 <div class="gcard"><div class="gk">STEP 5 · 戦略の順位と「今すぐ更新」</div><ul><li>合格ラインはスコア <b>18/25 以上</b>、デフレートSR <b>0.50 以上</b>などです</li><li>事前登録した戦略は11本（試行108通り）です。押し目（S7）と値幅縮小（S8）を追加しました。試行が増えるほどデフレートSRの基準は厳しくなります</li><li>遅延ストレス（1本遅れ＋スリッページ2倍）の損益が通常より良いと「要確認」と出ます。検査の不具合を疑ってください</li><li><b>今すぐ更新</b>で調査をやり直します。jobs が1分以内に始め、数分かかります。前回から10分以内は受け付けません</li></ul></div>
-<div class="gcard"><div class="gk">STEP 6 · ニュース分析</div><ul><li><b>重要度 0〜100</b> — AIの影響度・方向の強さ・銘柄との関連・値動きを決まった式で点数にし、鮮度で割り引いたもの。カーソルを合わせると内訳</li><li><b>センチメント</b> −1〜+1、<b>価格反応</b>は公開前の終値からの騰落率と普段の何σか</li><li><b>鮮度</b> — 新鮮 6時間以内／24時間以内／古い 72時間以内。72時間を超えると外します</li><li><b>AIの答え合わせ</b> — センチメントの向きが1日後・3日後の値動きと合った割合。30件たまるまでは参考値です。上位スコアの値動き（σ）が下位より大きければ、採点に意味があります</li><li><b>解説</b> — 既に起きた値動きの解説・まとめ記事の印。影響度を最大2として点数にします。答え合わせのタイルに「新事実」と「解説」の一致率が別々に出ます</li><li><b>フォワード記録</b> — 登録した日より後のデータだけで全戦略を追跡した成績。「整合」はバックテストどおり、「ずれ」はバックテストより悪い（または良すぎる）印。10件たまるまでは判定待ちです</li><li>参考情報です。シグナル・審査・発注には使いません</li></ul></div>
+<div class="gcard"><div class="gk">STEP 6 · ニュース分析</div><ul><li><b>重要度 0〜100</b> — AIの影響度・方向の強さ・銘柄との関連・値動きを決まった式で点数にし、鮮度で割り引いたもの。カーソルを合わせると内訳</li><li><b>センチメント</b> −1〜+1、<b>価格反応</b>は公開前の終値からの騰落率と普段の何σか</li><li><b>鮮度</b> — 新鮮 6時間以内／24時間以内／古い 72時間以内。72時間を超えると外します</li><li><b>AIの答え合わせ</b> — センチメントの向きが1日後・3日後の値動きと合った割合。同じ銘柄・同じ日の値動きに付いた見出しはまとめて1件と数え、30件たまるまでは参考値です。上位スコアの値動き（σ）が下位より大きければ、採点に意味があります</li><li><b>解説</b> — 既に起きた値動きの解説・まとめ記事の印。影響度を最大2として点数にします。答え合わせのタイルに「新事実」と「解説」の一致率が別々に出ます</li><li><b>フォワード記録</b> — 登録した日より後のデータだけで全戦略を追跡した成績。「整合」はバックテストどおり、「ずれ」はバックテストより悪い（または良すぎる）印。10件たまるまでは判定待ちです</li><li>参考情報です。シグナル・審査・発注には使いません</li></ul></div>
 <div class="gcard"><div class="gk">STEP 7 · 1日の流れ（JST）</div><ul><li><b>07:15</b> モーニングブリーフ（画面下の「最新のブリーフ」と briefs/）</li><li><b>09:05</b> 暗号資産のシグナル判定と発注</li><li><b>21:00</b> 夜間リサーチ（戦略の順位とフォワード記録を更新）</li><li><b>NY 16:15</b> 株のシグナル判定と審査 → <b>NY 08:45・09:15</b> 再審査と発注</li><li><b>日曜 10:00</b> 週次レビュー（ペーパーとバックテストの整合）</li></ul></div>
 <div class="gsec">OPS · 運用</div>
 <div class="gcard t"><div class="gk">STEP 8 · 手動コマンド</div><pre class="gcode"><span class="c"># 状態（alpaca_keys が true か）</span>
@@ -346,7 +346,7 @@ function renderNews(n){
   const d=e.direction||{},hr=d.hit_rate,bs=e.by_score||{};
   const cls=!e.enough||hr==null?'off':hr>=0.55?'ok':hr<0.45?'bad':'warn';
   const lab2=hr==null?'集計待ち':'方向一致 '+Math.round(hr*100)+'%';
-  const why=(e.enough?'':'件数不足のため参考値（方向あり '+(d.n||0)+' / '+ev.min_samples+'件）。')+(bs.high_abs_z!=null?'事前スコア上位の値動き '+bs.high_abs_z+'σ／下位 '+bs.low_abs_z+'σ':'')+(e.rank_corr!=null?'、順位相関 '+e.rank_corr:'')+(h==='1'&&ev.pending?'。待ち '+ev.pending+'件':'')+(d.by_kind&&(d.by_kind.new||d.by_kind.recap)?'。新事実 '+(d.by_kind.new?Math.round(d.by_kind.new.hit_rate*100)+'%（'+d.by_kind.new.n+'件）':'—')+'／解説 '+(d.by_kind.recap?Math.round(d.by_kind.recap.hit_rate*100)+'%（'+d.by_kind.recap.n+'件）':'—'):'');
+  const why=(e.enough?'値動き '+d.n+'件（見出し '+(d.n_headlines||0)+'件）で判定。':'件数不足のため参考値（値動き '+(d.n||0)+' / '+ev.min_samples+'件、見出し '+(d.n_headlines||0)+'件）。')+(bs.high_abs_z!=null?'事前スコア上位の値動き '+bs.high_abs_z+'σ／下位 '+bs.low_abs_z+'σ':'')+(e.rank_corr!=null?'、順位相関 '+e.rank_corr:'')+(h==='1'&&ev.pending?'。待ち '+ev.pending+'件':'')+(d.by_kind&&(d.by_kind.new||d.by_kind.recap)?'。新事実 '+(d.by_kind.new?Math.round(d.by_kind.new.hit_rate*100)+'%（'+d.by_kind.new.n+'件）':'—')+'／解説 '+(d.by_kind.recap?Math.round(d.by_kind.recap.hit_rate*100)+'%（'+d.by_kind.recap.n+'件）':'—'):'');
   add('AIの答え合わせ（'+lab+'）',lab2,cls,why)});
  table($('newsai'),[['重要度',1],['銘柄'],['見出し'],['センチメント'],['価格反応',1],['鮮度']],(n.items||[]).map(r=>{
   const a=r.analysis,imp=r.importance,p=r.price||{};
@@ -362,7 +362,7 @@ function renderNews(n){
   pr.append(el('div',(p.proxy?'市場全体の代わりに ':'')+(p.symbol||'')+(p.as_of?' '+p.as_of+' 終値':'')+(p.stale?'（古い）':''),'fail'));
   const fm=ago(r.published_utc),fr=freshOf(fm),fc=el('div');fc.append(el('span',fr[0],'badge '+fr[1]),el('div',agoText(fm),'fail'));
   return[ic,r.symbol||(a&&a.symbols.length?a.symbols.join(' '):'市場'),t,se,pr,fc]}));
- $('newsnote').textContent=(n.notice||'')+' 重要度は、AIの影響度・方向の強さ・保有/対象銘柄との関連・公開後の値動き（日足、普段の何σか）を決まった式で点数にし、鮮度で割り引いたものです（重要度にカーソルを合わせると内訳）。翻訳とセンチメントはAIの出力で、誤りを含むことがあります。答え合わせは、AIのセンチメントの向きが公開前の終値から1日後・3日後の値動きと合った割合と、価格を含まない事前スコアの上位半分と下位半分で値動き（普段の何σか）を比べたものです。'}
+ $('newsnote').textContent=(n.notice||'')+' 重要度は、AIの影響度・方向の強さ・保有/対象銘柄との関連・公開後の値動き（日足、普段の何σか）を決まった式で点数にし、鮮度で割り引いたものです（重要度にカーソルを合わせると内訳）。翻訳とセンチメントはAIの出力で、誤りを含むことがあります。答え合わせは、AIのセンチメントの向きが公開前の終値から1日後・3日後の値動きと合った割合と（同じ銘柄・同じ日の値動きを共有する見出しはまとめて1件と数えます）、価格を含まない事前スコアの上位半分と下位半分で値動き（普段の何σか）を比べたものです。'}
 function renderForward(f){
  if(!f){$('fwdasof').textContent='';table($('fwd'),[],[]);$('fwdnote').textContent='次の夜間リサーチ（21:00 JST）の後に記録が始まります。';return}
  $('fwdasof').textContent=jst(f.as_of_utc)+' JST 時点';
