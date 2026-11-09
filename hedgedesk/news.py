@@ -30,12 +30,17 @@ from typing import Literal
 from pydantic import BaseModel
 
 from . import config as C
-from . import scout, trader
+from . import news_track, scout, trader
 
 # 使うモデル。環境変数で変えられる。既定は Claude Opus 5.5。
 MODEL = os.environ.get("HEDGEDESK_NEWS_MODEL", "claude-opus-5-5")
-# プロンプトや出力の型を変えたら上げる。版が違う分析結果は古いものとして分析し直す。
-PROMPT_VERSION = "news-v1"
+# プロンプトや出力の型を変えたら上げる。ACCEPTED_VERSIONS にない版の分析結果は古いものとして分析し直す。
+# news-v2 で kind（新しい事実か、既に起きたことの解説か）を足した。v1 の結果は kind なし（不明）のまま使い、
+# 分析し直さない（同じ見出しに API の費用を二重にかけないため）。
+PROMPT_VERSION = "news-v2"
+ACCEPTED_VERSIONS = ("news-v1", "news-v2")
+# 解説・まとめ記事の影響度は、AI の答えがこれより大きくても、この値として点数にする。
+RECAP_IMPACT_CAP = 2
 # 一覧に載せる期間。これより前に公開された見出しは「期限切れ」として外し、AI にも送らない（費用の節約）。
 WINDOW_HOURS = 72
 # 1回の API 呼び出しで送る見出しの数と、1回の実行で分析する上限。tick のロック時間を長くしないための上限。
@@ -80,6 +85,7 @@ class NewsJudgement(BaseModel):
     ]
     symbols: list[str]
     reason_ja: str
+    kind: Literal["new", "recap"]
 
 
 class NewsBatch(BaseModel):
@@ -105,6 +111,9 @@ SYSTEM = """あなたは米国株・ETF・暗号資産を扱う調査デスク�
 - category: earnings / guidance / analyst / m_and_a / regulation_legal / macro_policy / product_business / market_move / crypto / other のいずれか。
 - symbols: 見出しや要約が直接言及している銘柄のティッカー（Yahoo 表記、例: AAPL、BTC-USD）。なければ空の配列。
 - reason_ja: 判断の理由を日本語1文（60字程度）で。
+- kind: new = 新しい事実の報道（発表、決定、決算、格付け変更など、価格がまだ織り込んでいない可能性があるもの）。
+  recap = 既に起きた値動きや出来事の解説・振り返り・まとめ・見通し記事（「なぜ急落したか」「今買うべきか」など）。
+  recap の記事は、価格が既に動いた後の説明なので、impact を小さめに付けてください。
 
 見出しと要約に書かれていることだけで判断し、書かれていない事実や株価を推測で足さないでください。
 判断できない見出しは sentiment を neutral、impact を 1 にしてください。"""
@@ -303,6 +312,7 @@ def _clean(j: NewsJudgement, known: set[str]) -> dict:
         "category": j.category,
         "symbols": sorted({s.strip().upper() for s in j.symbols if s.strip().upper() in known}),
         "reason_ja": j.reason_ja.strip()[:200],
+        "kind": j.kind,
     }
 
 
@@ -350,7 +360,7 @@ def analyze_pending(items: list[dict], now: datetime, client=None) -> dict:
     done = load_analyses()
     pending = [
         it for it in items
-        if (done.get(it["id"]) or {}).get("prompt_version") != PROMPT_VERSION
+        if (done.get(it["id"]) or {}).get("prompt_version") not in ACCEPTED_VERSIONS
         and (done.get(it["id"]) or {}).get("attempts", 0) < MAX_ATTEMPTS
     ]
     # 新しいものから分析する（上限で切れたときに、古い見出しのほうを後回しにする）。
@@ -509,7 +519,7 @@ def importance(analysis: dict, item: dict, price: dict | None, held: set[str]) -
     """AI の判断・関連度・価格の確認・鮮度から、重要度を 0〜100 点で計算する。
 
     内訳（素点の合計は最大90点。100点満点に換算してから鮮度の重みを掛ける）:
-        影響度   AI の impact（1〜5）× 8           … 8〜40点
+        影響度   AI の impact（1〜5）× 8           … 8〜40点（解説・まとめ記事は impact を最大 RECAP_IMPACT_CAP として計算）
         方向の強さ |sentiment_score| × 15          … 0〜15点
         関連度   保有銘柄 20 / ユニバース 10 / FRB などの市場全体 10 … 0〜20点
         価格の確認 公開後の値動きが普段の2倍以上 15 / 1倍以上 8      … 0〜15点
@@ -530,7 +540,7 @@ def importance(analysis: dict, item: dict, price: dict | None, held: set[str]) -
     z = (price or {}).get("z")
     confirm = 15 if z is not None and abs(z) >= 2 else 8 if z is not None and abs(z) >= 1 else 0
     comp = {
-        "impact": analysis["impact"] * 8,
+        "impact": (min(analysis["impact"], RECAP_IMPACT_CAP) if analysis.get("kind") == "recap" else analysis["impact"]) * 8,
         "sentiment": round(abs(analysis["sentiment_score"]) * 15, 1),
         "relevance": relevance,
         "price": confirm,
@@ -568,7 +578,7 @@ def build_digest(now: datetime, bars_loader=_load_bars) -> dict:
     rows, price_stale = [], set()
     for it in items:
         a = analyses.get(it["id"])
-        analysis = a if a and a.get("prompt_version") == PROMPT_VERSION else None
+        analysis = a if a and a.get("prompt_version") in ACCEPTED_VERSIONS else None
         # 価格を見る銘柄: フィードの銘柄 → AI が挙げた銘柄の先頭 → どちらもなければ SPY（市場全体の代わり）。
         sym = it.get("symbol") or ((analysis or {}).get("symbols") or [None])[0]
         proxy = sym is None
@@ -592,6 +602,7 @@ def build_digest(now: datetime, bars_loader=_load_bars) -> dict:
             row["analysis"] = {
                 k: analysis[k] for k in ("title_ja", "sentiment", "sentiment_score", "impact", "category", "symbols", "reason_ja", "model", "analyzed_utc")
             }
+            row["analysis"]["kind"] = analysis.get("kind")
             row["analysis"]["sentiment_label"] = SENTIMENT_LABELS[analysis["sentiment"]]
             row["analysis"]["category_label"] = CATEGORIES.get(analysis["category"], analysis["category"])
             row["importance"] = importance(analysis, it, price, held)
@@ -623,6 +634,12 @@ def build_digest(now: datetime, bars_loader=_load_bars) -> dict:
         "counts": {"total": len(rows), "analyzed": n_analyzed, "pending": pending, "expired_excluded": scout_info["expired"]},
         "items": rows[:DIGEST_LIMIT],
     }
+    # AI の採点の答え合わせ（news_track.py）。失敗しても一覧の作成は止めない。
+    try:
+        news_track.record(rows, now)
+        digest["evaluation"] = news_track.evaluate(now, bars_loader)
+    except Exception as ex:
+        digest["evaluation"] = {"error": type(ex).__name__}
     _write_json(_digest_path(), digest)
     return digest
 

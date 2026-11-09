@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import math
+import traceback
 from datetime import datetime, timezone
 
 import numpy as np
@@ -26,7 +27,14 @@ from . import data as D
 from . import journal
 from . import metrics as M
 from .backtest import Result, costs_for, simulate
-from .strategies import BLOCKED_HYPOTHESES, STRATEGIES, Context, Strategy, prepare, trial_id
+from .strategies import (
+    BLOCKED_HYPOTHESES,
+    STRATEGIES,
+    Context,
+    Strategy,
+    prepare,
+    trial_id,
+)
 
 # REGISTRY: これまでに試したすべての試行（戦略×パラメータ）の登録簿。夜ごとに増え、減らさない。
 # LATEST: 最新の調査レポート。CHAMPION: 現在のチャンピオン戦略（なければファイル自体がない）。
@@ -192,6 +200,9 @@ def evaluate(st: Strategy, ctx: Context) -> dict:
         "year_2022": M.summarize(y2022.returns, y2022.equity, y2022.trades, periods),
         "monte_carlo": M.monte_carlo_drawdown(oos_tr["r"].to_numpy(dtype=float) if len(oos_tr) else np.array([])),
         "kill_switch_fires_oos": kills,
+        # フォワード記録（forward.py）の整合判定用。OOS のトレードごとの R の平均と標準偏差。
+        "oos_r": {"n": len(oos_tr), "mean": round(float(oos_tr["r"].mean()), 4) if len(oos_tr) else None,
+                  "std": round(float(oos_tr["r"].std()), 4) if len(oos_tr) > 1 else None},
         "_oos_returns": oos_r,
     }
 
@@ -330,6 +341,13 @@ def run_research(refresh: bool = False, now: datetime | None = None) -> dict:
     C.REPORTS.mkdir(parents=True, exist_ok=True)
     (C.REPORTS / f"research_{now.strftime('%Y%m%d')}.json").write_text(json.dumps(report, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
     _update_champion(passed, now)
+    try:
+        # フォワード記録は参考情報なので、失敗しても調査結果とチャンピオンには影響させない。
+        from . import forward
+
+        forward.update(tested, ctx, now)
+    except Exception:
+        journal.log("job_error", "Strategist", job="forward", error=traceback.format_exc()[-800:])
     return report
 
 

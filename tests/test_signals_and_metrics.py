@@ -185,3 +185,28 @@ def test_launch_blocked_when_dates_unknown(monkeypatch):
     ok, reasons = events.launch_gate(datetime(2026, 11, 7, tzinfo=timezone.utc))
     assert not ok
     assert any("CPI" in r for r in reasons) and any("FOMC" in r for r in reasons)
+
+
+def test_new_hypotheses_match_their_rules():
+    """S7（押し目）の新規は安値の連続切り下げ後だけ、S8（値幅縮小）の新規は直近で最小の値幅の日だけに出る。"""
+    ctx = synthetic_context()
+    by_id = {s.id: s for s in STRATEGIES}
+    st = by_id["S7_PULLBACK_ETF"]
+    p = st.params()[0]
+    hits = 0
+    for s, sig in st.signals(ctx, p).items():
+        low = ctx.market[s]["low"]
+        for d in sig.index[sig["entry"] > 0]:
+            i = low.index.get_loc(d)
+            assert all(low.iloc[i - k] < low.iloc[i - k - 1] for k in range(p["n_down"]))
+            hits += 1
+    st = by_id["S8_NR_ETF"]
+    p = st.params()[0]
+    for s, sig in st.signals(ctx, p).items():
+        df = ctx.market[s]
+        rng = df["high"] - df["low"]
+        for d in sig.index[sig["entry"] > 0]:
+            i = rng.index.get_loc(d)
+            assert rng.iloc[i] <= rng.iloc[i - p["nr"] + 1:i + 1].min()
+            hits += 1
+    assert hits > 0

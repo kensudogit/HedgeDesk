@@ -130,6 +130,8 @@ python -m hedgedesk research --refresh
 python -m hedgedesk brief-data
 ```
 
+朝のブリーフ用の市場スナップショットは、既定で **夜間リサーチと同じ日足キャッシュ** を読むだけです（約 2 秒）。全銘柄を Yahoo から取り直す場合は `HEDGEDESK_BRIEF_MARKET_REFRESH=1` を付けてください（約 1 分）。
+
 キルスイッチを解除します。**解除はオーナーだけが行います。** 原因を確認してから実行してください。
 
 ```bash

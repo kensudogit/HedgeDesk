@@ -194,6 +194,41 @@ def vol_regime(ctx: Context, syms: list[str], p: dict) -> dict[str, pd.DataFrame
     return out
 
 
+def trend_pullback(ctx: Context, syms: list[str], p: dict) -> dict[str, pd.DataFrame]:
+    """上昇トレンドの中で安値を連続して切り下げた押し目を、前日終値の指値で拾う。"""
+    # 引数: p は n_down（安値の連続切り下げ日数）、stop_k、max_hold。
+    # 売られすぎの反発（RSI(2)）との違い: 値幅ではなく「何日続けて安値を割ったか」という日数で押しを測る。
+    # 手仕舞いは終値が前日の高値を上回ったとき（戻りを確認したら降りる）。rank は連続日数が同じなら ATR 比の下落幅。
+    out = {}
+    for s in syms:
+        df = ctx.market[s]
+        lower_low = (df["low"] < df["low"].shift(1)).astype(float)
+        streak = lower_low.rolling(p["n_down"]).sum() >= p["n_down"]
+        entry = streak & (df["close"] > df["sma200"]) & (df["sma50"] > df["sma200"])
+        drop = (df["close"].shift(p["n_down"]) - df["close"]) / df["atr"]
+        sig = _finish(df, entry, df["close"] > df["high"].shift(1), df["close"], p["stop_k"], p["max_hold"], rank=drop)
+        out[s] = _with_earnings(ctx, s, sig) if s in C.STOCKS else sig
+    return out
+
+
+def range_contraction(ctx: Context, syms: list[str], p: dict) -> dict[str, pd.DataFrame]:
+    """値幅が直近で最も小さくなった日（NR4 / NR7）に、上昇トレンドで強く引けたら翌日に買う。"""
+    # 引数: p は nr（何日の中で最小の値幅か）、stop_k、exit_sma、max_hold。
+    # 値幅の縮小はエネルギーの蓄積で、その後に大きく動きやすいという仮説。方向はトレンドと引け位置で決める。
+    # 当日の値幅を含めた nr 日の最小なので、当日の終値までの情報だけで決まる（先読みなし）。
+    out = {}
+    for s in syms:
+        df = ctx.market[s]
+        rng = df["high"] - df["low"]
+        narrow = rng <= rng.rolling(p["nr"]).min()
+        strong_close = df["close"] >= (df["high"] + df["low"]) / 2
+        entry = narrow & strong_close & (df["close"] > df["sma50"]) & (df["sma50"] > df["sma200"])
+        limit = df["close"] + 0.25 * df["atr"]
+        sig = _finish(df, entry, df["close"] < df[f"sma{p['exit_sma']}"], limit, p["stop_k"], p["max_hold"], rank=-rng / df["atr"])
+        out[s] = _with_earnings(ctx, s, sig) if s in C.STOCKS else sig
+    return out
+
+
 @dataclass
 class Strategy:
     """事前登録した1つの戦略仮説。
@@ -324,6 +359,36 @@ STRATEGIES: list[Strategy] = [
         "{max_hold}本で手仕舞い。",
         "指値-{stop_k}ATR。",
         "VIXが何度も再上昇する長期の弱気相場（2022年型）。",
+    ),
+    Strategy(
+        "S7_PULLBACK_ETF", "上昇トレンドの押し目（ETF）", "etf", C.ETFS, trend_pullback,
+        {"n_down": [3, 4], "stop_k": [2.0, 3.0], "max_hold": [5, 10]},
+        "上昇トレンド中に数日続く下げは、トレンド転換ではなく一時的な利益確定であることが多い。",
+        "短期の値動きに反応して手放す投資家、損切りの連鎖で売らされる参加者。",
+        "安値を{n_down}日続けて切り下げ、終値が200日線より上、50日線が200日線より上、スコア7以上。翌日、前日終値の指値。",
+        "終値が前日の高値を上回った翌日の始値、または{max_hold}本で手仕舞い（最低2本保有）。",
+        "指値-{stop_k}ATR。",
+        "トレンドの天井圏。押し目と思った下げがそのまま下落相場の始まりになる局面。",
+    ),
+    Strategy(
+        "S7_PULLBACK_STOCK", "上昇トレンドの押し目（個別株）", "stock", C.STOCKS, trend_pullback,
+        {"n_down": [3, 4], "stop_k": [2.0, 3.0], "max_hold": [5, 10]},
+        "大型株の上昇トレンド中の数日の下げは、一時的な需給の偏りで戻りやすい。",
+        "短期の値動きに反応して手放す投資家、損切りの連鎖で売らされる参加者。",
+        "安値を{n_down}日続けて切り下げ、終値が200日線より上、50日線が200日線より上、スコア7以上。翌日、前日終値の指値。",
+        "終値が前日の高値を上回った翌日の始値、または{max_hold}本で手仕舞い（最低2本保有）。",
+        "指値-{stop_k}ATR。",
+        "銘柄固有の悪材料による下げ。決算前は入らない（決算跨ぎ禁止）。",
+    ),
+    Strategy(
+        "S8_NR_ETF", "値幅縮小からの上放れ（ETF）", "etf", C.ETFS, range_contraction,
+        {"nr": [4, 7], "stop_k": [2.0, 3.0], "exit_sma": [10, 20], "max_hold": [10]},
+        "値幅が縮んだ後は大きく動きやすい。上昇トレンドで強く引けた日なら、上に放れる確率が高い。",
+        "値幅の縮小で様子見に回った参加者、レンジの上限で売っていた逆張り勢。",
+        "当日の値幅が直近{nr}日で最小、終値が当日の値幅の中央より上、終値が50日線より上、50日線が200日線より上、スコア7以上。翌日、終値+0.25ATRの指値。",
+        "終値が{exit_sma}日線を下回った翌日の始値、または{max_hold}本で手仕舞い（最低2本保有）。",
+        "指値-{stop_k}ATR。",
+        "値幅の縮小の後に下へ放れる局面。祝日前など、単に参加者が少なくて値幅が縮んだ日。",
     ),
 ]
 

@@ -132,6 +132,7 @@ def status(now: datetime | None = None) -> dict:
         "journal": rows[-15:][::-1],
         "headlines": scout.recent(12, now)[::-1],
         "news": _news(),
+        "forward": _read_json(C.STATE / "forward.json"),
         "brief": _latest_brief(),
         "refresh": refresh.state(),
     }
@@ -219,13 +220,42 @@ details summary::-webkit-details-marker{display:none}
 details summary::before{content:"";width:7px;height:7px;margin:0 2px 0 4px;border-right:2px solid var(--accent);border-bottom:2px solid var(--accent);transform:rotate(-45deg);transition:transform .2s}
 details[open] summary::before{transform:rotate(45deg)}details[open] summary{margin-bottom:14px}
 .foot{display:flex;gap:10px;align-items:flex-start;color:var(--mute);font-size:12.5px;padding:14px 16px;border-radius:14px;border:1px dashed var(--line2)}
-@media (max-width:560px){main{padding:16px 16px 40px}.top .in{padding:10px 16px}.live{margin-left:0;width:100%}.hero,section{padding:16px}.head .mute{margin-left:0}}
+.gbtn{padding:5px 13px;font-size:12px;border-radius:999px;border-color:color-mix(in srgb,var(--accent2) 50%,transparent);background:color-mix(in srgb,var(--accent2) 16%,transparent)}
+.guide{--gc:var(--accent2);position:fixed;right:16px;bottom:16px;z-index:30;width:min(392px,calc(100vw - 32px));max-height:min(700px,calc(100vh - 32px));display:flex;flex-direction:column;border-radius:20px;overflow:hidden;background:var(--bg2);-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);border:1px solid color-mix(in srgb,var(--accent2) 32%,var(--line));box-shadow:0 26px 64px -22px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.03) inset}
+.guide[hidden]{display:none}
+.gbar{flex:none;display:flex;align-items:center;gap:10px;padding:12px 12px 12px 14px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;border-bottom:1px solid var(--line)}
+.gbar:active{cursor:grabbing}.guide[data-fold="1"] .gbar{border-bottom:0}
+.grip{color:var(--mute);font-size:17px;line-height:1}
+.gtitle{min-width:0}.gtitle b{display:flex;align-items:center;gap:8px;font-size:15.5px;font-weight:750}
+.gtitle b::before{content:"";width:4px;height:17px;border-radius:2px;background:linear-gradient(var(--accent2),color-mix(in srgb,var(--accent2) 55%,var(--accent)));flex:none}
+.gtitle small{display:block;margin:1px 0 0 12px;font:800 9.5px/1.3 var(--mono);letter-spacing:.13em;color:var(--mute)}
+.ghint{margin-left:auto;font-size:11.5px;font-weight:650;color:var(--accent2);white-space:nowrap}
+.gfold{flex:none;width:36px;height:36px;padding:0;border-radius:50%;display:grid;place-items:center;font-size:12px;color:var(--accent2);background:color-mix(in srgb,var(--accent2) 12%,transparent);border-color:color-mix(in srgb,var(--accent2) 40%,transparent)}
+.gfold span{transition:transform .2s}.guide[data-fold="1"] .gfold span{transform:rotate(180deg)}
+.gbody{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;padding:14px 14px 18px}.gbody>*+*{margin-top:12px}
+.guide[data-fold="1"] .gbody{display:none}
+.gcard{border-radius:14px;padding:13px 15px 14px;background:linear-gradient(135deg,color-mix(in srgb,var(--gc) 15%,var(--panel)),color-mix(in srgb,var(--gc) 5%,var(--panel)));border:1px solid color-mix(in srgb,var(--gc) 32%,var(--line))}
+.gcard.w{--gc:var(--warn)}.gcard.r{--gc:var(--bad)}.gcard.t{--gc:var(--accent)}
+.gk{font:800 10.5px/1.2 var(--mono);letter-spacing:.12em;color:var(--gc);margin-bottom:7px}
+.gcard h3{margin:0 0 6px;font-size:14.5px;font-weight:720;line-height:1.5}
+.gcard p{margin:0 0 6px;font-size:12.8px;line-height:1.7}
+.gtag{display:inline-block;font:800 9.5px/1 var(--mono);letter-spacing:.1em;padding:5px 8px;border-radius:6px;background:var(--gc);color:#fff;margin-right:8px;vertical-align:2px}
+.gcard.w .gtag,.gcard.t .gtag{color:#111827}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}.chips span{font-size:11.3px;font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid color-mix(in srgb,var(--gc) 36%,transparent);background:color-mix(in srgb,var(--bg2) 55%,transparent)}
+.gcard ul,.gcard ol{margin:4px 0 0;padding-left:19px;font-size:12.5px;line-height:1.65;color:var(--mute)}.gcard li{margin:4px 0}.gcard li b{color:var(--ink);font-weight:650}
+.gcard code{font:600 11.5px/1 var(--mono);padding:1px 5px;border-radius:5px;background:color-mix(in srgb,var(--gc) 14%,transparent);color:var(--ink);overflow-wrap:anywhere}
+.gsec{font:800 10.5px/1 var(--mono);letter-spacing:.14em;color:var(--mute);margin:8px 2px 0}
+pre.gcode{margin:8px 0 2px;padding:11px 13px;border-radius:11px;background:#0b1020;color:#dbe4ff;font:11.5px/1.65 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;overflow:auto;border:1px solid rgba(129,140,248,.28)}
+pre.gtopo{margin-top:8px;font-size:11.3px;white-space:pre;overflow-wrap:normal}
+.gcard pre.gcode .c,pre.gcode .c{color:#8b9bc7}
+@media (max-width:560px){main{padding:16px 16px 40px}.top .in{padding:10px 16px}.live{margin-left:0;width:100%}.hero,section{padding:16px}.head .mute{margin-left:0}.ghint{display:none}.gfold{margin-left:auto}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style></head><body>
-<header class="top"><div class="in"><div class="brand"><img class="logo" id="logo" src="/logo.png" alt="" width="34" height="34"><span class="logo" id="logotext" aria-hidden="true" hidden>HD</span><h1>HedgeDesk</h1></div><span class="pill">ペーパー取引のみ</span><span class="live"><span class="dot" id="dot"></span><span id="updated">接続中</span></span></div></header>
+<header class="top"><div class="in"><div class="brand"><img class="logo" id="logo" src="/logo.png" alt="" width="34" height="34"><span class="logo" id="logotext" aria-hidden="true" hidden>HD</span><h1>HedgeDesk</h1></div><span class="pill">ペーパー取引のみ</span><button class="gbtn" id="guidebtn" type="button" aria-controls="guide" aria-expanded="false">利用手順</button><span class="live"><span class="dot" id="dot"></span><span id="updated">接続中</span></span></div></header>
 <main>
 <div class="hero" id="hero"><div class="eyebrow">デスクの状態</div><p class="lead" id="lead">読み込み中です</p><div class="tiles" id="stat"></div></div>
 <section><div class="head"><div><h2>戦略の順位</h2><span class="mute" id="research"></span></div><span class="act"><span class="mute" id="refreshmsg"></span><button id="refresh" type="button">今すぐ更新</button></span></div><div class="scroll"><table id="strat"></table></div><p class="mute" id="stratnote"></p></section>
+<section><div class="head"><div><h2>フォワード記録</h2><span class="mute">記録開始日より後のデータだけで全戦略を追跡。発注はしません</span></div><span class="mute" id="fwdasof"></span></div><div class="scroll"><table id="fwd"></table></div><p class="mute" id="fwdnote"></p></section>
 <section><div class="head"><div><h2>ニュース分析</h2><span class="mute">外部データのAI分析。売買判断には使いません</span></div><span class="mute" id="newsasof"></span></div><div class="tiles" id="newsstat"></div><div class="scroll" style="margin-top:14px"><table id="newsai"></table></div><p class="mute" id="newsnote"></p></section>
 <div class="two">
 <section><h2>今後のイベント</h2><div class="scroll"><table id="events"></table></div><p class="mute" id="eventsnote"></p></section>
@@ -236,6 +266,49 @@ details[open] summary::before{transform:rotate(45deg)}details[open] summary{marg
 <section><details><summary id="briefname">最新のブリーフ</summary><pre id="brief"></pre></details></section>
 <p class="foot">この画面からできる操作は「今すぐ更新」（調査のやり直し）だけです。発注や設定変更はできません。検証データであり、投資助言ではありません。</p>
 </main>
+<aside class="guide" id="guide" role="dialog" aria-modal="false" aria-labelledby="guidetitle" hidden>
+<div class="gbar" id="guidebar" tabindex="0" title="ドラッグで移動（矢印キーでも動かせます）"><span class="grip" aria-hidden="true">☰</span><div class="gtitle"><b id="guidetitle">利用手順</b><small>ARCHITECTURE &amp; OPS</small></div><span class="ghint" aria-hidden="true">ドラッグで移動</span><button class="gfold" id="guidefold" type="button" aria-expanded="true" aria-controls="guidebody" title="たたむ"><span aria-hidden="true">▼</span></button></div>
+<div class="gbody" id="guidebody">
+<div class="gcard"><div class="gk">HEDGEDESK · PAPER ONLY</div><h3>米国株・ETF・暗号資産のスイング戦略デスク</h3><p>戦略をウォークフォワードで検証し、基準を通ったチャンピオン戦略だけを Alpaca のペーパー口座で動かします。ニュースは Claude で訳して採点し、鮮度と値動きで裏を取ります。実資金の発注はできません。</p><div class="chips"><span>Python 3.12 · pandas</span><span>yfinance · 日足</span><span>Docker Compose</span><span>Alpaca Paper API</span><span>Claude opus-5-5</span><span>FRB · Yahoo RSS</span><span>ウォークフォワード · DSR</span><span>TradingView Pine（目視）</span><span>pytest</span></div></div>
+<div class="gcard"><p><span class="gtag">ARCHITECTURE</span><b>3つの常駐コンテナ ＋ 手動ツール</b></p><p>この画面（ui）は読み取り専用です。処理は tick と jobs が受け持ち、結果は共有フォルダの state/ などに書きます。キーは .env からコンテナを作るときに渡し、イメージには入りません。</p><ul><li><b>ui :8765</b> — サービス画面。127.0.0.1 だけに公開。書けるのは「今すぐ更新」の依頼だけ</li><li><b>tick</b> — 5分ごと。Scout、ニュース分析、キルスイッチ監視、シグナル、Trader</li><li><b>jobs</b> — 夜間リサーチ 21:00、ブリーフ 07:15、週次レビュー 日曜 10:00（JST）</li><li><b>desk</b>（--profile tools）— 調査や状態確認の手動コマンド</li><li><b>test</b>（--profile test）— pytest 一式</li></ul></div>
+<div class="gsec">SERVICE TOPOLOGY</div>
+<pre class="gcode gtopo">Browser（このPCだけ）
+   │ http://127.0.0.1:8765
+   ▼
+ui :8765 ── 読み取り専用 ── state/ journal/ briefs/
+   │ 今すぐ更新 → requests/
+   ▼
+jobs ─ Strategist  21:00 夜間リサーチ
+     ├ Brief       07:15 モーニングブリーフ
+     └ Weekly      日 10:00 週次レビュー
+tick ─ Scout       30分ごと FRB・Yahoo RSS
+     ├ News        収集直後 → Claude API
+     ├ Risk        キルスイッチ・審査
+     └ Trader      → Alpaca Paper API</pre>
+<div class="gsec">SETUP · はじめ方</div>
+<div class="gcard t"><div class="gk">STEP 1 · 起動する</div><ol><li>Docker Desktop を起動し、Settings › General の <b>Start Docker Desktop when you sign in</b> をオンにします（オフだと再起動後に止まったままです）</li><li>HedgeDesk のフォルダで全サービスを起動します<pre class="gcode">docker compose --profile tick up -d --build</pre></li><li>ブラウザで <code>http://127.0.0.1:8765</code> を開きます。上部の点が緑なら定期実行が動いています</li></ol><p class="mute">ビルドが buildx のエラーで失敗するときは、PowerShell で次を設定してからやり直します。</p><pre class="gcode">$env:COMPOSE_BAKE="false"; $env:DOCKER_CONTEXT="desktop-linux"</pre></div>
+<div class="gcard t"><div class="gk">STEP 2 · Alpaca ペーパー口座をつなぐ</div><ol><li>Alpaca の <b>Paper Trading</b> 画面で API キーを発行します</li><li><code>.env.example</code> を <code>.env</code> にコピーし、<code>APCA_API_KEY_ID</code> と <code>APCA_API_SECRET_KEY</code> を書きます。キーはチャットに貼りません</li><li>.env はコンテナを作るときにしか読まれないので、tick を作り直します<pre class="gcode">docker compose --profile tick up -d --force-recreate tick</pre></li><li>読み取りだけでキーを確かめます（発注はしません）。<code>ok: true</code> なら接続できています<pre class="gcode">docker compose --profile tools run --rm desk python -m hedgedesk check-alpaca</pre></li><li>「Alpacaペーパー口座」のタイルが <b>キー設定済み</b> になれば完了です</li></ol></div>
+<div class="gcard t"><div class="gk">STEP 3 · ニュースのAI分析（任意）</div><ol><li><code>.env</code> に <code>ANTHROPIC_API_KEY</code> を書き、STEP 2 と同じ手順で tick を作り直します</li><li>次の収集（30分ごと）のあと、「AI分析」のタイルが <b>稼働中</b> になります。1回に分析するのは新しい見出しから最大40件です</li><li>モデルは <code>HEDGEDESK_NEWS_MODEL</code> で変更でき、<code>HEDGEDESK_NEWS_AI=off</code> で AI 分析だけを止められます</li></ol></div>
+<div class="gsec">DAILY · 画面の読み方</div>
+<div class="gcard"><div class="gk">STEP 4 · デスクの状態</div><ul><li><b>上部カードの色</b> — 緑：取引の条件が揃っている／赤：キルスイッチ作動か定期実行の停止／それ以外：調査だけで取引していない</li><li><b>5分ごとの定期実行</b> — 「停止の可能性」なら tick が動いていません</li><li><b>チャンピオン</b> — 基準を通った戦略。なしなら取引しません</li><li><b>保有・発注中</b>・<b>データの不備</b> — 件数と、日足が欠けている銘柄</li></ul></div>
+<div class="gcard"><div class="gk">STEP 5 · 戦略の順位と「今すぐ更新」</div><ul><li>合格ラインはスコア <b>18/25 以上</b>、デフレートSR <b>0.50 以上</b>などです</li><li>事前登録した戦略は11本（試行108通り）です。押し目（S7）と値幅縮小（S8）を追加しました。試行が増えるほどデフレートSRの基準は厳しくなります</li><li>遅延ストレス（1本遅れ＋スリッページ2倍）の損益が通常より良いと「要確認」と出ます。検査の不具合を疑ってください</li><li><b>今すぐ更新</b>で調査をやり直します。jobs が1分以内に始め、数分かかります。前回から10分以内は受け付けません</li></ul></div>
+<div class="gcard"><div class="gk">STEP 6 · ニュース分析</div><ul><li><b>重要度 0〜100</b> — AIの影響度・方向の強さ・銘柄との関連・値動きを決まった式で点数にし、鮮度で割り引いたもの。カーソルを合わせると内訳</li><li><b>センチメント</b> −1〜+1、<b>価格反応</b>は公開前の終値からの騰落率と普段の何σか</li><li><b>鮮度</b> — 新鮮 6時間以内／24時間以内／古い 72時間以内。72時間を超えると外します</li><li><b>AIの答え合わせ</b> — センチメントの向きが1日後・3日後の値動きと合った割合。30件たまるまでは参考値です。上位スコアの値動き（σ）が下位より大きければ、採点に意味があります</li><li><b>解説</b> — 既に起きた値動きの解説・まとめ記事の印。影響度を最大2として点数にします。答え合わせのタイルに「新事実」と「解説」の一致率が別々に出ます</li><li><b>フォワード記録</b> — 登録した日より後のデータだけで全戦略を追跡した成績。「整合」はバックテストどおり、「ずれ」はバックテストより悪い（または良すぎる）印。10件たまるまでは判定待ちです</li><li>参考情報です。シグナル・審査・発注には使いません</li></ul></div>
+<div class="gcard"><div class="gk">STEP 7 · 1日の流れ（JST）</div><ul><li><b>07:15</b> モーニングブリーフ（画面下の「最新のブリーフ」と briefs/）</li><li><b>09:05</b> 暗号資産のシグナル判定と発注</li><li><b>21:00</b> 夜間リサーチ（戦略の順位とフォワード記録を更新）</li><li><b>NY 16:15</b> 株のシグナル判定と審査 → <b>NY 08:45・09:15</b> 再審査と発注</li><li><b>日曜 10:00</b> 週次レビュー（ペーパーとバックテストの整合）</li></ul></div>
+<div class="gsec">OPS · 運用</div>
+<div class="gcard t"><div class="gk">STEP 8 · 手動コマンド</div><pre class="gcode"><span class="c"># 状態（alpaca_keys が true か）</span>
+docker compose --profile tools run --rm desk python -m hedgedesk status
+<span class="c"># 調査をやり直す</span>
+docker compose --profile tools run --rm desk python -m hedgedesk research --refresh
+<span class="c"># AIを呼ばずに鮮度と価格反応だけ更新</span>
+docker compose --profile tools run --rm desk python -m hedgedesk news --no-ai
+<span class="c"># テスト</span>
+docker compose --profile test run --rm --build test
+<span class="c"># すべて止める</span>
+docker compose --profile tick down</pre></div>
+<div class="gcard r"><div class="gk">KILL SWITCH · キルスイッチ</div><p>損失などの条件で作動すると、新規の取引が止まります。<b>解除はオーナーだけ</b>が行います。原因を確かめてから実行し、解除はジャーナルに記録されます。</p><pre class="gcode">docker compose --profile tools run --rm desk python -m hedgedesk reset-kill</pre></div>
+<div class="gcard w"><div class="gk">TROUBLESHOOTING</div><ul><li><b>.env を変えたのに効かない</b> — コンテナを作り直していません。STEP 2 の <code>--force-recreate tick</code> を実行します</li><li><b>定期実行：停止の可能性</b> — PC のスリープや Docker Desktop の停止を確認し、<code>docker compose --profile tick ps</code> と <code>docker compose --profile tick logs --tail 50 tick</code> を見ます</li><li><b>AI分析：エラー</b> — タイルに理由が出ます。キーの無効や残高不足なら .env を直して tick を作り直します</li><li><b>CPI の日程がない</b> — ブリーフが警告し、新規ローンチを止めます。<code>state/events_manual.json</code> に出典付きで追記します</li></ul></div>
+<div class="gcard r"><div class="gk">RULES · 守ること</div><ul><li>接続先は Alpaca のペーパー口座に固定です。実資金の発注はできません</li><li>この画面には認証がありません。ポート設定を変えてインターネットに公開しないでください</li><li>キーは .env にだけ置き、チャットや共有ファイルに貼りません</li><li>DESK_RULES.md を変えられるのはオーナーだけです</li><li>TradingView のアラートを Webhook で発注につながないでください</li><li>ここに出る結果は検証データであり、投資助言ではありません</li></ul></div>
+</div></aside>
 <script>
 const $=id=>document.getElementById(id);
 const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined&&text!==null)e.textContent=text;if(cls)e.className=cls;return e};
@@ -267,6 +340,14 @@ function renderNews(n){
  add('ニュース収集',sStale?'停止の可能性':'稼働中',sStale?'bad':'ok','最終収集 '+agoText(sm)+'、最新の見出しの公開 '+agoText(ago(f.newest_published_utc)));
  add('分析済み',(c.analyzed||0)+' / '+(c.total||0)+'件',c.pending?(f.analysis_stale?'warn':'off'):'ok',(c.pending?'未分析 '+c.pending+'件'+(f.analysis_stale?'（分析が遅れています）':''):'')+(c.expired_excluded?' 期限切れ（'+f.window_hours+'時間超）で除外 '+c.expired_excluded+'件':''));
  const ps=f.price_stale_symbols||[];add('価格データ',ps.length?'古い銘柄あり':'最新',ps.length?'warn':'ok',ps.length?ps.join('、')+' の日足が古いため、価格反応は参考になりません':'Yahoo日足（夜間リサーチとブリーフで更新）');
+ const ev=n.evaluation||{};
+ [['1','1日後'],['3','3日後']].forEach(([h,lab])=>{const e=(ev.horizons||{})[h];
+  if(!e){add('AIの答え合わせ（'+lab+'）',ev.error?'集計エラー':'記録なし','off',ev.error||'分析済みの見出しが記録されると、値動きと照合します');return}
+  const d=e.direction||{},hr=d.hit_rate,bs=e.by_score||{};
+  const cls=!e.enough||hr==null?'off':hr>=0.55?'ok':hr<0.45?'bad':'warn';
+  const lab2=hr==null?'集計待ち':'方向一致 '+Math.round(hr*100)+'%';
+  const why=(e.enough?'':'件数不足のため参考値（方向あり '+(d.n||0)+' / '+ev.min_samples+'件）。')+(bs.high_abs_z!=null?'事前スコア上位の値動き '+bs.high_abs_z+'σ／下位 '+bs.low_abs_z+'σ':'')+(e.rank_corr!=null?'、順位相関 '+e.rank_corr:'')+(h==='1'&&ev.pending?'。待ち '+ev.pending+'件':'')+(d.by_kind&&(d.by_kind.new||d.by_kind.recap)?'。新事実 '+(d.by_kind.new?Math.round(d.by_kind.new.hit_rate*100)+'%（'+d.by_kind.new.n+'件）':'—')+'／解説 '+(d.by_kind.recap?Math.round(d.by_kind.recap.hit_rate*100)+'%（'+d.by_kind.recap.n+'件）':'—'):'');
+  add('AIの答え合わせ（'+lab+'）',lab2,cls,why)});
  table($('newsai'),[['重要度',1],['銘柄'],['見出し'],['センチメント'],['価格反応',1],['鮮度']],(n.items||[]).map(r=>{
   const a=r.analysis,imp=r.importance,p=r.price||{};
   const icls=imp?(imp.label==='高'?'bad':imp.label==='中'?'warn':'off'):'off';
@@ -274,14 +355,25 @@ function renderNews(n){
   if(imp)ic.title='影響度 '+imp.components.impact+' / 方向 '+imp.components.sentiment+' / 関連 '+imp.components.relevance+' / 価格 '+imp.components.price+' × 鮮度 '+imp.freshness_weight;
   const t=el('div');let head=a?a.title_ja:r.title;
   if(/^https?:\\/\\//.test(r.link||'')){const l=el('a',head);l.href=r.link;l.target='_blank';l.rel='noopener noreferrer';t.append(l)}else t.append(el('span',head));
-  if(a){t.append(el('div',r.title,'fail'));t.append(el('div',a.category_label+'：'+a.reason_ja,'fail'))}else if(r.analysis_error)t.append(el('div','分析失敗：'+r.analysis_error,'fail'));
+  if(a){t.append(el('div',r.title,'fail'));const cr=el('div',null,'fail');if(a.kind==='recap'){const b=el('span','解説','badge off');b.title='既に起きた値動きや出来事の解説・まとめ。影響度を最大2として点数にしています';cr.append(b,' ')}cr.append(a.category_label+'：'+a.reason_ja);t.append(cr)}else if(r.analysis_error)t.append(el('div','分析失敗：'+r.analysis_error,'fail'));
   const se=el('div');if(a){se.append(el('span',a.sentiment_label+' '+(a.sentiment_score>0?'+':'')+a.sentiment_score.toFixed(2),'badge '+sentCls[a.sentiment]),senti(a.sentiment_score,a.sentiment_score>0?'ok':a.sentiment_score<0?'bad':'off'))}else se.append(el('span','—'));
   const pr=el('div');const why={pending:'公開後の足なし',no_time:'公開時刻不明',no_base:'公開前の足なし',no_data:'データなし'};
   pr.append(el('div',p.status==='ok'?sgn(p.reaction)+(p.z!=null?'（'+p.z.toFixed(1)+'σ）':''):why[p.status]||'—'));
   pr.append(el('div',(p.proxy?'市場全体の代わりに ':'')+(p.symbol||'')+(p.as_of?' '+p.as_of+' 終値':'')+(p.stale?'（古い）':''),'fail'));
   const fm=ago(r.published_utc),fr=freshOf(fm),fc=el('div');fc.append(el('span',fr[0],'badge '+fr[1]),el('div',agoText(fm),'fail'));
   return[ic,r.symbol||(a&&a.symbols.length?a.symbols.join(' '):'市場'),t,se,pr,fc]}));
- $('newsnote').textContent=(n.notice||'')+' 重要度は、AIの影響度・方向の強さ・保有/対象銘柄との関連・公開後の値動き（日足、普段の何σか）を決まった式で点数にし、鮮度で割り引いたものです（重要度にカーソルを合わせると内訳）。翻訳とセンチメントはAIの出力で、誤りを含むことがあります。'}
+ $('newsnote').textContent=(n.notice||'')+' 重要度は、AIの影響度・方向の強さ・保有/対象銘柄との関連・公開後の値動き（日足、普段の何σか）を決まった式で点数にし、鮮度で割り引いたものです（重要度にカーソルを合わせると内訳）。翻訳とセンチメントはAIの出力で、誤りを含むことがあります。答え合わせは、AIのセンチメントの向きが公開前の終値から1日後・3日後の値動きと合った割合と、価格を含まない事前スコアの上位半分と下位半分で値動き（普段の何σか）を比べたものです。'}
+function renderForward(f){
+ if(!f){$('fwdasof').textContent='';table($('fwd'),[],[]);$('fwdnote').textContent='次の夜間リサーチ（21:00 JST）の後に記録が始まります。';return}
+ $('fwdasof').textContent=jst(f.as_of_utc)+' JST 時点';
+ const r2=v=>v==null?'—':(v>0?'+':'')+v.toFixed(2)+'R';
+ table($('fwd'),[['戦略'],['記録開始'],['日数',1],['トレード',1],['平均R',1],['バックテストの90%範囲',1],['整合'],['最新の足のシグナル']],(f.rows||[]).map(r=>{
+  const n=el('div');n.append(el('div',r.name));if(r.passed_now)n.append(el('span','合格','badge ok'));
+  const c=r.consistent===true?['整合','ok']:r.consistent===false?['ずれ','bad']:['判定待ち','off'];
+  const cc=el('div');cc.append(el('span',c[0],'badge '+c[1]));if(r.consistent==null)cc.append(el('div',r.trades+' / '+f.min_trades+'件','fail'));
+  const sg=el('div');if(!r.signals_today.length)sg.append(el('span','—'));r.signals_today.forEach(x=>sg.append(el('div',x.symbol+' 指値 '+x.limit+' / 逆指値 '+x.stop)));
+  return[n,r.start,r.bars,r.trades,r2(r.mean_r),r.range90?r2(r.range90[0])+' 〜 '+r2(r.range90[1]):'—',cc,sg]}));
+ $('fwdnote').textContent='登録した日のパラメータを固定し、その後の足だけで同じシミュレータ（コスト・キルスイッチ込み）を回した成績です。バックテストと違い、過去を見て選び直していません。整合は、平均Rがバックテスト（OOS）のトレード分布から同じ件数を引いたときの90%範囲に入るかで、'+f.min_trades+'件未満は判定しません。最新の足のシグナルは参考表示で、発注には使いません。'+((f.history||[]).length?' パラメータが変わった古い登録 '+f.history.length+'件も追跡を続けています。':'')}
 function render(s){
  const champ=s.champion,kill=s.kill_switch&&s.kill_switch.active,canTrade=champ&&s.alpaca_keys&&!kill;
  $('lead').textContent=kill?'キルスイッチが作動中です。新規の取引は止まっています。':canTrade?'ペーパートレードの稼働条件が揃っています。':!s.tick_healthy?'定期実行が止まっている可能性があります。':'調査は稼働中です。取引はしていません。'+(champ?'Alpacaのキーが未設定です。':'基準を通った戦略がありません。');
@@ -303,7 +395,7 @@ function render(s){
  $('eventsnote').textContent=s.events_as_of?'今後7日間。'+jst(s.events_as_of)+' JST 時点。':'イベント情報はまだありません。';
  table($('sched'),[['処理'],['タイミング'],['実行元']],s.schedule.map(x=>[x.job,x.when,x.runner]));
  table($('journal'),[['時刻(JST)'],['種類'],['担当'],['内容']],s.journal.map(r=>[jst(r.ts),kinds[r.kind]||r.kind,r.agent,jsum(r)]));
- renderNews(s.news);
+ renderNews(s.news);renderForward(s.forward);
  table($('news'),[['銘柄'],['見出し'],['出所']],s.headlines.map(h=>{let t=h.title;if(/^https?:\\/\\//.test(h.link||'')){t=el('a',h.title);t.href=h.link;t.target='_blank';t.rel='noopener noreferrer'}return[h.symbol||'—',t,h.source]}));
  if(s.brief){$('briefname').textContent='最新のブリーフ（'+s.brief.name+'）';$('brief').textContent=s.brief.text}
 }
@@ -315,6 +407,22 @@ async function requestRefresh(){const b=$('refresh');b.disabled=true;$('refreshm
  if(document.visibilityState!=='hidden')setTimeout(load,1500);setTimeout(()=>{if(!$('refreshmsg').textContent.includes('中'))b.disabled=false},3000)}
 $('refresh').addEventListener('click',requestRefresh);
 $('logo').addEventListener('error',()=>{$('logo').hidden=true;$('logotext').hidden=false});
+(()=>{const g=$('guide'),bar=$('guidebar'),btn=$('guidebtn'),fb=$('guidefold'),KEY='hedgedesk.guide';let st={};
+ try{st=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){st={}}
+ const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}};
+ function place(x,y){const r=g.getBoundingClientRect();x=Math.max(8,Math.min(innerWidth-r.width-8,x));y=Math.max(8,Math.min(innerHeight-r.height-8,y));Object.assign(g.style,{left:x+'px',top:y+'px',right:'auto',bottom:'auto'});st.x=x;st.y=y}
+ function fold(f){g.dataset.fold=f?'1':'';fb.setAttribute('aria-expanded',String(!f));fb.title=f?'開く':'たたむ';st.fold=f;if(st.x!=null)place(st.x,st.y);save()}
+ function show(open){g.hidden=!open;btn.setAttribute('aria-expanded',String(open));st.open=open;if(open&&st.x!=null)place(st.x,st.y);save()}
+ let drag=null;
+ bar.addEventListener('pointerdown',e=>{if(e.button!==0||e.target.closest('button'))return;const r=g.getBoundingClientRect();drag={dx:e.clientX-r.left,dy:e.clientY-r.top};bar.setPointerCapture(e.pointerId)});
+ bar.addEventListener('pointermove',e=>{if(drag)place(e.clientX-drag.dx,e.clientY-drag.dy)});
+ const end=()=>{if(drag){drag=null;save()}};bar.addEventListener('pointerup',end);bar.addEventListener('pointercancel',end);
+ bar.addEventListener('keydown',e=>{const d={ArrowLeft:[-16,0],ArrowRight:[16,0],ArrowUp:[0,-16],ArrowDown:[0,16]}[e.key];if(!d)return;e.preventDefault();const r=g.getBoundingClientRect();place(r.left+d[0],r.top+d[1]);save()});
+ g.addEventListener('keydown',e=>{if(e.key==='Escape'){show(false);btn.focus()}});
+ fb.addEventListener('click',()=>fold(g.dataset.fold!=='1'));
+ btn.addEventListener('click',()=>{show(g.hidden);if(!g.hidden)bar.focus()});
+ addEventListener('resize',()=>{if(!g.hidden&&st.x!=null)place(st.x,st.y)});
+ fold(st.fold??innerWidth<560);show(st.open!==false)})();
 load();setInterval(load,15000);
 </script></body></html>"""
 

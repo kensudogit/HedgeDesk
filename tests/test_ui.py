@@ -116,3 +116,14 @@ def test_logo_is_served_and_other_public_files_are_not(server, tmp_path, monkeyp
     with pytest.raises(HTTPError) as e:
         urlopen(server + "/logo.png")
     assert e.value.code == 404
+
+
+def test_usage_guide_palette_is_static_and_safe():
+    """利用手順のパレットは静的なマークアップで、主要な手順を含み、キーの値や外部スクリプトを含まない。"""
+    page = ui.PAGE
+    assert 'id="guide"' in page and 'id="guidebtn"' in page and "ARCHITECTURE &amp; OPS" in page
+    for step in ("docker compose --profile tick up -d --build", "--force-recreate tick", "reset-kill", "docker compose --profile tick down"):
+        assert step in page
+    assert "<script src" not in page and "sk-ant-" not in page
+    # localStorage は位置と開閉の記憶だけで、失敗しても画面が動くよう try で囲む。
+    assert "try{localStorage.setItem" in page

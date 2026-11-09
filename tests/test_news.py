@@ -13,7 +13,7 @@ import pytest
 from conftest import make_bars
 
 from hedgedesk import config as C
-from hedgedesk import desk, news, scout, trader
+from hedgedesk import desk, news, news_track, scout, trader
 
 NOW = datetime(2026, 11, 9, 22, 0, tzinfo=timezone.utc)  # 月曜 NY 17:00（当日の足は確定済み）
 
@@ -41,7 +41,7 @@ def fake_client(*responses):
 def judgement(id_, **kw):
     """AI の1件分の出力を作る（指定しない項目は無難な値）。"""
     base = {"id": id_, "title_ja": "訳", "sentiment": "positive", "sentiment_score": 0.6, "impact": 4,
-            "category": "earnings", "symbols": [], "reason_ja": "理由"}
+            "category": "earnings", "symbols": [], "reason_ja": "理由", "kind": "new"}
     base.update(kw)
     return news.NewsJudgement(**base)
 
@@ -297,6 +297,8 @@ def test_digest_orders_by_importance_and_links_prices():
     assert d["items"][2]["importance"] is None
     assert d["counts"] == {"total": 3, "analyzed": 2, "pending": 1, "expired_excluded": 0}
     assert d["freshness"]["scout_stale"] is False
+    # 分析済みの2件は答え合わせ用に記録される。月曜の引け前の公開なので、金曜の終値 → 月曜の終値で1本後を測れる。
+    assert d["evaluation"]["recorded"] == 2 and d["evaluation"]["horizons"]["1"]["n"] == 2 and d["evaluation"]["pending"] == 0
 
 
 def test_tick_runs_news_after_scout(monkeypatch):
@@ -323,3 +325,79 @@ def test_ui_status_includes_limited_news(monkeypatch):
     assert ui.status(NOW)["news"] is None
     (C.STATE / "news_digest.json").write_text(json.dumps({"items": [{"id": str(i)} for i in range(50)]}), encoding="utf-8")
     assert len(ui.status(NOW)["news"]["items"]) == 30
+
+
+# ---------------------------------------------------------------------------
+# 答え合わせ（news_track.py）
+# ---------------------------------------------------------------------------
+
+def _row(id_, score, published, symbol="AAPL", impact=3, relevance=10, analysed=True):
+    """build_digest の行の形（答え合わせに必要な項目だけ）。"""
+    return {
+        "id": id_, "published_utc": published.isoformat(), "price": {"symbol": symbol, "proxy": False},
+        "analysis": {"sentiment": "positive" if score > 0 else "negative", "sentiment_score": score, "impact": impact,
+                     "category": "earnings", "model": "m"} if analysed else None,
+        "importance": {"components": {"relevance": relevance, "price": 15}} if analysed else None,
+    }
+
+
+def test_track_records_once_and_excludes_price_from_score():
+    """分析済みの見出しだけを1回だけ記録し、事前スコアには公開後の値動き（価格の確認）を入れない。"""
+    pub = NOW - timedelta(days=3)
+    rows = [_row("a", 0.6, pub), _row("b", 0.6, pub, analysed=False)]
+    assert news_track.record(rows, NOW) == 1
+    assert news_track.record(rows, NOW) == 0
+    rec = news_track._load()["a"]
+    assert rec["pre_score"] == 3 * 8 + 0.6 * 15 + 10 and rec["price_symbol"] == "AAPL"
+
+
+def test_recap_caps_impact_and_old_analyses_stay_valid():
+    """解説・まとめ記事は影響度を最大2として点数にする。kind のない v1 の分析は、そのまま有効（分析し直さない）。"""
+    item = {"symbol": "AAPL", "source": "Yahoo Finance", "freshness": {"weight": 1.0}}
+    a = {"impact": 5, "sentiment_score": -0.5, "symbols": []}
+    assert news.importance({**a, "kind": "recap"}, item, None, held=set())["components"]["impact"] == 16
+    assert news.importance({**a, "kind": "new"}, item, None, held=set())["components"]["impact"] == 40
+    assert news.importance(a, item, None, held=set())["components"]["impact"] == 40
+    assert "news-v1" in news.ACCEPTED_VERSIONS and news.PROMPT_VERSION in news.ACCEPTED_VERSIONS
+    assert "kind" in news.SYSTEM and news.NewsJudgement.model_fields["kind"].is_required()
+
+
+def test_track_splits_direction_by_kind():
+    """方向一致率は kind 別にも出す。解説記事を区別したことの効果を後から確かめるため。"""
+    df = bars_until("2026-11-09", n=40)
+    closes = df.columns.get_loc("close")
+    i = df.index.get_loc(pd.Timestamp("2026-11-04"))
+    df.iloc[i + 1:, closes] = df.iloc[i, closes] * 1.05
+    pub = datetime(2026, 11, 4, 22, 0, tzinfo=timezone.utc)
+    rows = [_row("n1", 0.7, pub), _row("r1", -0.7, pub)]
+    rows[0]["analysis"]["kind"], rows[1]["analysis"]["kind"] = "new", "recap"
+    news_track.record(rows, NOW)
+    by_kind = news_track.evaluate(NOW, lambda s: df)["horizons"]["1"]["direction"]["by_kind"]
+    assert by_kind == {"new": {"n": 1, "hit_rate": 1.0}, "recap": {"n": 1, "hit_rate": 0.0}}
+
+
+def test_track_evaluates_direction_against_fixed_horizon():
+    """公開前の終値から1本後の終値で方向を判定する。最新の終値では判定しない。"""
+    df = bars_until("2026-11-09", n=40)
+    closes = df.columns.get_loc("close")
+    # 11/4（水）の引け後に公開 → 基準は11/4の終値。11/5 に上昇、その後は大きく下落。
+    i = df.index.get_loc(pd.Timestamp("2026-11-04"))
+    df.iloc[i + 1, closes] = df.iloc[i, closes] * 1.05
+    df.iloc[i + 2:, closes] = df.iloc[i, closes] * 0.8
+    pub = datetime(2026, 11, 4, 22, 0, tzinfo=timezone.utc)
+    news_track.record([_row("up", 0.7, pub), _row("down", -0.7, pub), _row("flat", 0.05, pub),
+                       _row("new", 0.7, NOW - timedelta(hours=1))], NOW)
+    ev = news_track.evaluate(NOW, lambda s: df)
+    h1 = ev["horizons"]["1"]
+    assert h1["n"] == 3 and ev["pending"] == 1
+    assert h1["direction"]["n"] == 2 and h1["direction"]["hit_rate"] == 0.5   # 方向の弱い flat は対象外
+    assert h1["direction"]["by_kind"] == {"unknown": {"n": 2, "hit_rate": 0.5}}   # kind のない記録は unknown
+    assert h1["enough"] is False
+    h3 = ev["horizons"]["3"]
+    assert h3["direction"]["hit_rate"] == 0.5
+
+
+def test_spearman_handles_ties_and_constant():
+    assert news_track._spearman([1, 2, 3, 4, 5], [2, 4, 6, 8, 10]) == 1.0
+    assert news_track._spearman([1, 1, 1, 1, 1], [1, 2, 3, 4, 5]) is None
+    assert news_track._spearman([1, 2], [1, 2]) is None

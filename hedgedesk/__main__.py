@@ -1,4 +1,4 @@
-"""コマンド入口: python -m hedgedesk <research|brief|brief-data|tick|loop|jobs|weekly|scout|news|status|ui|reset-kill>"""
+"""コマンド入口: python -m hedgedesk <research|forward|brief|brief-data|tick|loop|jobs|weekly|scout|news|status|check-alpaca|ui|reset-kill>"""
 #
 # 【役割】`python -m hedgedesk <サブコマンド>` の入口。引数を見て各モジュールの関数を呼び分ける。
 # 【位置付け】Docker Compose の各サービス（ui / tick=loop / jobs）と手動操作の両方がここを通る。
@@ -29,6 +29,15 @@ def main() -> int:
             "ranked": [{"id": r["id"], "score": r["score"]["total"], "oos": r["out_of_sample"], "dsr": r["deflated_sharpe"], "failures": r["failures"]} for r in rep["ranked"]],
             "untested": [{"id": r["id"], "failures": r["failures"]} for r in rep["untested"]],
         }, ensure_ascii=False, indent=1, default=str))
+    elif cmd == "forward":
+        # フォワード記録だけを作り直す（最新の調査結果とキャッシュ済みのデータを使う。データは取り直さない）。
+        from . import forward
+        from .research import LATEST, build_context
+
+        rep = json.loads(LATEST.read_text(encoding="utf-8"))
+        ctx, _ = build_context(refresh=False)
+        out = forward.update(rep.get("ranked", []), ctx)
+        print(json.dumps([{k: r[k] for k in ("strategy", "start", "trades", "mean_r", "range90", "consistent", "signals_today")} for r in out["rows"]], ensure_ascii=False, indent=1))
     elif cmd == "brief-data":
         # ブリーフの材料だけを作って state/brief_data.json に保存し、そのパスを表示する。
         from .desk import brief_data
@@ -87,6 +96,21 @@ def main() -> int:
             KILL_FILE.unlink()
         journal.log("kill_reset", "Owner", note="オーナーが解除")
         print("kill switch reset")
+    elif cmd == "check-alpaca":
+        # ペーパー口座のキーを読み取りだけで確かめる（GET /v2/account）。発注はしない。キーの値と口座番号は表示しない。
+        from . import trader
+
+        broker = trader.AlpacaPaper()
+        if not broker.available:
+            print(json.dumps({"keys": False, "ok": False, "hint": ".env に APCA_API_KEY_ID と APCA_API_SECRET_KEY を書き、tick を作り直してください"}, ensure_ascii=False))
+            return 1
+        try:
+            acct = broker.account()
+        except Exception as ex:
+            print(json.dumps({"keys": True, "ok": False, "error": type(ex).__name__}, ensure_ascii=False))
+            return 1
+        print(json.dumps({"keys": True, "ok": True, "endpoint": broker.BASE, "status": acct.get("status"),
+                          "currency": acct.get("currency"), "equity": acct.get("equity"), "trading_blocked": acct.get("trading_blocked")}, ensure_ascii=False))
     elif cmd == "status":
         # 現在の状態の要約。alpaca_keys はキーの有無（真偽値）だけで、キーの値は表示しない。
         from . import analyst, risk, trader

@@ -3,6 +3,7 @@
 # 【対象】hedgedesk/risk.py（審査と数量）、hedgedesk/trader.py（安全装置、注文の形、見回り、決済の記録）、
 #   hedgedesk/desk.py（tick の1日1回の実行、ロック、常駐ループ）、hedgedesk/scout.py（失敗の可視化と重複除去）。
 # 【方針】Alpaca への通信は FakeHttp に差し替え、送ろうとした内容を記録して検査する。実際には何も送らない。
+import sys
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -383,3 +384,21 @@ def test_scout_keeps_failures_visible_and_dedupes(monkeypatch, tmp_path):
     assert any("Federal Reserve" in f for f in res["failures"])
     assert scout.collect(NOW, Http())["new"] == 0
     assert json.loads((tmp_path / "scout" / "2026-11-09.jsonl").read_text(encoding="utf-8").splitlines()[0])["title"] == "Hi"
+
+
+def test_check_alpaca_reads_account_only_and_hides_secrets(monkeypatch, capsys):
+    """check-alpaca は口座情報を GET するだけで発注せず、キーや口座番号を表示しない。キーがなければ終了コード1。"""
+    from hedgedesk import __main__ as cli
+
+    real = trader.AlpacaPaper
+    http = FakeHttp(account={"status": "ACTIVE", "currency": "USD", "equity": "100000", "account_number": "PA0SECRET", "trading_blocked": False})
+    monkeypatch.setattr(trader, "AlpacaPaper", lambda: real(session=http, keys=("k", "s")))
+    monkeypatch.setattr(sys, "argv", ["hedgedesk", "check-alpaca"])
+    assert cli.main() == 0
+    out = capsys.readouterr().out
+    assert '"ok": true' in out and "ACTIVE" in out and "PA0SECRET" not in out and '"k"' not in out
+    assert [c[0] for c in http.calls] == ["GET"]
+
+    monkeypatch.setattr(trader, "AlpacaPaper", lambda: real(session=FakeHttp(), keys=(None, None)))
+    assert cli.main() == 1
+    assert '"keys": false' in capsys.readouterr().out

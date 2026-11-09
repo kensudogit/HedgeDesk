@@ -286,14 +286,18 @@ def _tick(now: datetime | None = None, broker=None) -> dict:
     return log_line
 
 
-def market_snapshot() -> dict:
+def market_snapshot(refresh: bool | None = None) -> dict:
     """ブリーフ用の市場データ。計算した値だけを返す。"""
     # 戻り値: 主要 ETF・暗号資産の終値・前日比・21営業日騰落率・200日線との位置・出来高倍率・スコアと、
     #   VIX、出来高が20日平均の2倍以上の銘柄の一覧。
-    # 副作用: build_context でデータを取り直す（refresh=True）。
+    # 既定は refresh=False（夜間リサーチと同じキャッシュを読むだけ）。朝のブリーフで毎回全銘柄を
+    #   Yahoo から取り直すと 1 分超かかるため。取り直しが必要なときは環境変数
+    #   HEDGEDESK_BRIEF_MARKET_REFRESH=1 または引数 refresh=True。
     from .research import build_context
 
-    ctx, log = build_context(refresh=True)
+    if refresh is None:
+        refresh = os.environ.get("HEDGEDESK_BRIEF_MARKET_REFRESH", "").strip().lower() in ("1", "true", "yes")
+    ctx, log = build_context(refresh=refresh)
     rows = {}
     for s in C.INDEX_ETFS + C.SECTOR_ETFS + C.CRYPTO:
         df = ctx.market.get(s)
@@ -335,7 +339,8 @@ def brief_data(now: datetime | None = None) -> dict:
     """Chief of Staff がブリーフを書くための材料を1つのJSONにまとめる。"""
     # 引数: now は作成時刻。ジャーナルは直近24時間分を読む。
     # 戻り値: ブリーフの材料の dict（brief.render が読む）。
-    # 副作用: state/brief_data.json に保存する（画面のイベント表示にも使われる）。市場データとイベントをネットワークから取得する。
+    # 副作用: state/brief_data.json に保存する（画面のイベント表示にも使われる）。
+    #   市場スナップショットは通常キャッシュ読み取り（events は events モジュールが取得）。
     # ニュースの見出しは scout_headlines_untrusted という名前で入れ、外部データだと分かるようにしている（ブリーフ本文には使わない）。
     now = now or datetime.now(timezone.utc)
     since = (now - timedelta(hours=24)).isoformat(timespec="seconds")
