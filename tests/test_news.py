@@ -88,6 +88,31 @@ def test_load_items_dedupes_and_drops_expired():
     assert info["expired"] == 1 and info["last_collected_utc"] == "2026-11-09T21:30:00+00:00"
 
 
+def test_last_collected_advances_when_no_new_headlines():
+    """新着0件の回も「収集した」と数える（以前は新着がないと停止に見えた）。全フィードが失敗した回は数えない。"""
+    rss = b"<rss><channel><item><title>Hi</title><link>https://x/1</link></item></channel></rss>"
+
+    class Http:
+        def __init__(self, fail=False):
+            self.fail = fail
+
+        def get(self, url, headers=None, timeout=None):
+            if self.fail:
+                raise OSError("down")
+            return SimpleNamespace(content=rss, raise_for_status=lambda: None)
+
+    first = NOW - timedelta(hours=2)
+    assert scout.collect(first, Http())["new"] == 1
+    assert scout.collect(NOW - timedelta(minutes=5), Http())["new"] == 0
+    _, info = news.load_items(NOW)
+    assert info["last_collected_utc"] == (NOW - timedelta(minutes=5)).isoformat(timespec="seconds")
+    assert news.build_digest(NOW, bars_loader=lambda s: None)["freshness"]["scout_stale"] is False
+    scout.collect(NOW, Http(fail=True))
+    assert scout.last_run()["last_run_utc"] == NOW.isoformat(timespec="seconds")
+    _, info = news.load_items(NOW)
+    assert info["last_collected_utc"] == (NOW - timedelta(minutes=5)).isoformat(timespec="seconds")
+
+
 def test_parse_rss_keeps_plain_summary():
     """RSS の description はタグを除いた文字列で summary に入る（HTML として扱わない）。"""
     xml = b"""<rss><channel><item><title>T</title><link>https://x/1</link><pubDate>Mon, 09 Nov 2026 20:00:00 GMT</pubDate>

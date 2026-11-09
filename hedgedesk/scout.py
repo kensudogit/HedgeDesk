@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -102,7 +103,33 @@ def collect(now: datetime | None = None, session=None) -> dict:
                         new += 1
             except Exception as ex:
                 failures.append(f"{name}{':' + sym if sym else ''} ({type(ex).__name__})")
+    _write_last_run(now, ok=len(failures) < len(feeds), new=new, failures=failures)
     return {"new": new, "failures": failures, "path": str(path)}
+
+
+# 最後に収集した時刻の記録。新着が0件の回は見出しのファイルに何も書かないので、見出しの収集時刻だけでは
+# 「収集は動いているが新着がない」と「収集が止まっている」を区別できない。そのため実行ごとにここへ残す。
+# 名前が .jsonl ではないので、見出しのファイルとして読まれることはない。
+LAST_RUN_NAME = "_last_run.json"
+
+
+def _write_last_run(now: datetime, ok: bool, new: int, failures: list[str]) -> None:
+    """収集の実行時刻を記録する。last_ok_utc は1つ以上のフィードを取得できた回だけ進める（全滅は収集とみなさない）。"""
+    path = OUT / LAST_RUN_NAME
+    prev = last_run()
+    ts = now.isoformat(timespec="seconds")
+    data = {"last_run_utc": ts, "last_ok_utc": ts if ok else prev.get("last_ok_utc"), "new": new, "failures": failures[:20]}
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def last_run() -> dict:
+    """最後の収集の記録。まだ一度も記録がなければ空の dict。"""
+    try:
+        return json.loads((OUT / LAST_RUN_NAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
 
 
 def recent(limit: int = 60, now: datetime | None = None) -> list[dict]:

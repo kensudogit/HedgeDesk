@@ -221,6 +221,10 @@ def load_items(now: datetime) -> tuple[list[dict], dict]:
                 "published_utc": published.isoformat(timespec="seconds") if published else None,
                 "freshness": fr,
             })
+    # 新着0件の回も収集は動いているので、Scout の実行記録（フィードを1つ以上取得できた時刻）も合わせて見る。
+    ok = parse_time(scout.last_run().get("last_ok_utc"))
+    if ok and (last_collected is None or ok > last_collected):
+        last_collected = ok
     return items, {"last_collected_utc": last_collected.isoformat(timespec="seconds") if last_collected else None, "expired": expired}
 
 
