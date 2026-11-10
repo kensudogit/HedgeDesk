@@ -127,3 +127,49 @@ def test_usage_guide_palette_is_static_and_safe():
     assert "<script src" not in page and "sk-ant-" not in page
     # localStorage は位置と開閉の記憶だけで、失敗しても画面が動くよう try で囲む。
     assert "try{localStorage.setItem" in page
+
+
+def _get(server, path, auth=None):
+    """GET を送り、(HTTP ステータス, ヘッダー, 本文) を返す。auth は (ユーザー, パスワード)。"""
+    import base64
+
+    headers = {}
+    if auth:
+        headers["Authorization"] = "Basic " + base64.b64encode(f"{auth[0]}:{auth[1]}".encode()).decode()
+    try:
+        r = urlopen(Request(server + path, headers=headers))
+        return r.status, r.headers, r.read()
+    except HTTPError as e:
+        return e.code, e.headers, e.read()
+
+
+def test_public_deploy_without_password_shows_nothing(server, monkeypatch):
+    """Railway など（PORT あり）でパスワードがなければ、画面も状況も返さない。死活確認だけは通す。"""
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.delenv("HEDGEDESK_UI_PASSWORD", raising=False)
+    for path in ("/", "/api/status", "/logo.png"):
+        code, _, body = _get(server, path)
+        assert code == 503 and b"equity" not in body
+    assert _get(server, "/healthz")[0] == 200
+    assert post(server)[0] == 503
+
+
+def test_password_requires_basic_auth(server, monkeypatch):
+    """パスワードを設定すると Basic 認証が必要になる。正しい組み合わせだけ通る。"""
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("HEDGEDESK_UI_PASSWORD", "s3cret-test")
+    code, headers, _ = _get(server, "/api/status")
+    assert code == 401 and "Basic" in headers["WWW-Authenticate"]
+    assert _get(server, "/api/status", ("desk", "wrong"))[0] == 401
+    assert _get(server, "/api/status", ("other", "s3cret-test"))[0] == 401
+    code, _, body = _get(server, "/api/status", ("desk", "s3cret-test"))
+    assert code == 200 and json.loads(body)["alpaca_keys"] is False
+    assert _get(server, "/healthz")[0] == 200
+
+
+def test_local_default_has_no_password_and_fixed_port(server, monkeypatch):
+    """ローカル（PORT なし・パスワードなし）は今までどおり認証なしで見られる。"""
+    monkeypatch.delenv("PORT", raising=False)
+    monkeypatch.delenv("HEDGEDESK_UI_PASSWORD", raising=False)
+    assert _get(server, "/api/status")[0] == 200
+    assert ui.PORT == 8765

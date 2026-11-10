@@ -32,6 +32,10 @@ def isolated_state(tmp_path, monkeypatch):
     monkeypatch.delenv("APCA_API_BASE_URL", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("HEDGEDESK_NEWS_AI", raising=False)
+    # 画面の公開設定（Railway の PORT とパスワード）も消し、ローカルの既定で検査する。
+    monkeypatch.delenv("PORT", raising=False)
+    monkeypatch.delenv("HEDGEDESK_UI_PASSWORD", raising=False)
+    monkeypatch.delenv("HEDGEDESK_UI_USER", raising=False)
 
 
 def make_bars(rows, start="2024-01-01"):

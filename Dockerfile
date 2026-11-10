@@ -41,3 +41,9 @@ COPY pytest.ini ./
 USER desk
 # -p no:cacheprovider: 読み取り専用の環境でも動くよう、.pytest_cache を書かない。
 CMD ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider"]
+
+
+# 既定のビルド対象（--target を指定しないビルド。Railway など）。中身は runtime と同じで、テストは入らない。
+# Compose は各サービスで target を指定しているので、この段は使わない。
+FROM runtime AS app
+CMD ["python", "-m", "hedgedesk", "ui"]

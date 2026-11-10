@@ -1,6 +1,8 @@
 """サービス画面: Deskの状況を表示する読み取り専用のローカルサーバー。
 
-- 127.0.0.1 だけで待ち受ける。PCの外からは見えない。
+- 既定は 127.0.0.1 だけで待ち受ける。PCの外からは見えない。
+- Railway などのクラウドで動かすとき（環境変数 PORT がある）は 0.0.0.0:$PORT で待ち受け、
+  HEDGEDESK_UI_PASSWORD による Basic 認証を必須にする。パスワードがなければ /healthz 以外は何も見せない。
 - GETのみ。発注、キルスイッチ解除、設定変更の機能は持たない。
 - ニュースの見出しなど外部の文字列（AI による訳と理由を含む）は、画面側で textContent としてのみ表示する。
 """
@@ -12,6 +14,8 @@
 #   ニュース分析は news.py が書いた state/news_digest.json を読むだけ（AI の呼び出しは tick コンテナで行う）。
 from __future__ import annotations
 
+import base64
+import hmac
 import json
 import os
 from datetime import datetime, timezone
@@ -20,12 +24,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from . import config as C
 from . import journal, refresh, risk, scout, trader
 
+# PUBLIC: クラウド（Railway など）は待ち受けるポートを環境変数 PORT で渡す。PORT があれば公開環境とみなす。
+PUBLIC = bool(os.environ.get("PORT"))
 # 既定はこのPCのみ。コンテナの中でだけ 0.0.0.0 にし、公開範囲は Compose 側で 127.0.0.1 に絞る。
-# この画面に認証はないので、インターネットへ直接公開しないこと。
-HOST = os.environ.get("HEDGEDESK_UI_HOST", "127.0.0.1")
-# 待ち受けポート（固定）。ホスト側の公開ポートは Compose の HEDGEDESK_UI_PORT で変えられる。
+# 公開環境では 0.0.0.0 で待ち受けるが、Basic 認証を必須にする（_auth_error）。
+HOST = os.environ.get("HEDGEDESK_UI_HOST", "0.0.0.0" if PUBLIC else "127.0.0.1")
+# 待ち受けポート。ローカルは 8765 固定（ホスト側の公開ポートは Compose の HEDGEDESK_UI_PORT で変えられる）。
 # TICK_STALE_SECONDS: 最終 tick からこの秒数（10分）を超えたら、画面で「停止の可能性」と表示する。
-PORT = 8765
+PORT = int(os.environ.get("PORT") or 8765)
 TICK_STALE_SECONDS = 600
 # 画面のロゴとファビコン（/logo.png で返す）。イメージには Dockerfile で public/PC.png だけをコピーする。
 LOGO = C.ROOT / "public" / "PC.png"
@@ -339,7 +345,7 @@ function renderNews(n){
  const sm=ago(f.scout_last_collected_utc),sStale=sm==null||sm>45;
  add('ニュース収集',sStale?'停止の可能性':'稼働中',sStale?'bad':'ok','最終収集 '+agoText(sm)+'、最新の見出しの公開 '+agoText(ago(f.newest_published_utc)));
  add('分析済み',(c.analyzed||0)+' / '+(c.total||0)+'件',c.pending?(f.analysis_stale?'warn':'off'):'ok',(c.pending?'未分析 '+c.pending+'件'+(f.analysis_stale?'（分析が遅れています）':''):'')+(c.expired_excluded?' 期限切れ（'+f.window_hours+'時間超）で除外 '+c.expired_excluded+'件':''));
- const ps=f.price_stale_symbols||[];add('価格データ',ps.length?'古い銘柄あり':'最新',ps.length?'warn':'ok',ps.length?ps.join('、')+' の日足が古いため、価格反応は参考になりません':'Yahoo日足（夜間リサーチとブリーフで更新）');
+ const ps=f.price_stale_symbols||[];add('価格データ',ps.length?'古い銘柄あり':'最新',ps.length?'warn':'ok',ps.length?ps.join('、')+' の前営業日の終値がありません（米国の休場日なら正常）。価格反応は参考程度に':'Yahoo日足（夜間リサーチとブリーフで更新）');
  const ev=n.evaluation||{};
  [['1','1日後'],['3','3日後']].forEach(([h,lab])=>{const e=(ev.horizons||{})[h];
   if(!e){add('AIの答え合わせ（'+lab+'）',ev.error?'集計エラー':'記録なし','off',ev.error||'分析済みの見出しが記録されると、値動きと照合します');return}
@@ -427,8 +433,46 @@ load();setInterval(load,15000);
 </script></body></html>"""
 
 
+def _auth_error(headers) -> tuple[int, bytes, dict] | None:
+    """認証の判定。問題なければ None、だめなら (HTTP ステータス, 本文, 追加ヘッダー)。
+
+    パスワード（HEDGEDESK_UI_PASSWORD）が設定されていれば、ローカルでも公開環境でも Basic 認証を求める。
+    公開環境（PORT あり）でパスワードがなければ、口座や取引の情報を守るため 503 で何も見せない。
+    環境変数はリクエストごとに読む（テストで差し替えるため。値は保存しない）。
+    """
+    password = os.environ.get("HEDGEDESK_UI_PASSWORD", "")
+    public = bool(os.environ.get("PORT"))
+    if not password:
+        if public:
+            return 503, "公開環境ではパスワードが必要です。環境変数 HEDGEDESK_UI_PASSWORD を設定してください。".encode(), {}
+        return None
+    user = os.environ.get("HEDGEDESK_UI_USER", "desk")
+    expected = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+    if hmac.compare_digest((headers.get("Authorization") or "").encode(), expected.encode()):
+        return None
+    return 401, b"authentication required", {"WWW-Authenticate": 'Basic realm="HedgeDesk", charset="UTF-8"'}
+
+
 class Handler(BaseHTTPRequestHandler):
     """サービス画面の HTTP ハンドラー。ThreadingHTTPServer がリクエストごとにスレッドで生成する。"""
+    def _guard(self) -> bool:
+        """認証に失敗したら応答を送って False。/healthz（死活確認）は認証なしで通す。"""
+        if self.path == "/healthz":
+            return True
+        err = _auth_error(self.headers)
+        if err is None:
+            return True
+        code, body, extra = err
+        self.send_response(code)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        for k, v in extra.items():
+            self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(body)
+        return False
+
     def _send(self, code: int, body: bytes, ctype: str) -> None:
         """応答を送る。Cache-Control: no-store で、古い状況がブラウザのキャッシュから表示されないようにする。"""
         self.send_response(code)
@@ -440,7 +484,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):  # noqa: N802
         # パスは完全一致で判定する。state/ のファイルを直接返すような経路は作らない（それ以外は404）。
-        if self.path == "/":
+        if not self._guard():
+            return
+        if self.path == "/healthz":
+            # クラウドの死活確認用。中身は返さない。
+            self._send(200, b"ok", "text/plain")
+        elif self.path == "/":
             self._send(200, PAGE.encode("utf-8"), "text/html; charset=utf-8")
         elif self.path == "/logo.png":
             # ロゴ画像。決まった1ファイルだけを返す（パスを組み立てないので、ほかのファイルは読めない）。
@@ -460,6 +509,8 @@ class Handler(BaseHTTPRequestHandler):
         ほかのサイトに置かれたフォームやスクリプトから押されないよう、独自ヘッダーを必須にする。
         独自ヘッダー付きの送信はブラウザが事前確認するが、この画面はそれを許可しないので、他サイトからは届かない。
         """
+        if not self._guard():
+            return
         if self.path != "/api/refresh":
             self._send(404, b"not found", "text/plain")
             return
