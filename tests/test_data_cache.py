@@ -188,3 +188,90 @@ def test_evaluation_is_deterministic():
     assert a == b
     if ra is not None:
         assert np.array_equal(ra.to_numpy(), rb.to_numpy())
+
+
+# ---------------------------------------------------------------------------
+# 直近の足の補充（top_up）
+# ---------------------------------------------------------------------------
+
+def test_expected_last_session_for_stocks_and_crypto():
+    """株は NY 16:15 を過ぎた平日ならその日、前なら前の平日。暗号資産は UTC の前日。"""
+    tue_jst_9am = datetime(2026, 11, 10, 0, 0, tzinfo=timezone.utc)      # NY 月曜 19:00
+    assert str(D.expected_last_session("SPY", tue_jst_9am)) == "2026-11-09"
+    mon_ny_10am = datetime(2026, 11, 9, 15, 0, tzinfo=timezone.utc)       # NY 月曜 10:00 → 金曜
+    assert str(D.expected_last_session("SPY", mon_ny_10am)) == "2026-11-06"
+    sat = datetime(2026, 11, 7, 18, 0, tzinfo=timezone.utc)
+    assert str(D.expected_last_session("SPY", sat)) == "2026-11-06"
+    assert str(D.expected_last_session("BTC-USD", tue_jst_9am)) == "2026-11-09"
+
+
+def _bars(end, level, n=30):
+    idx = pd.bdate_range(end=end, periods=n)
+    return pd.DataFrame({"Open": level, "High": level + 1, "Low": level - 1, "Close": level, "Adj Close": level, "Volume": 1000.0}, index=idx)
+
+
+def test_top_up_appends_missing_session_and_throttles(tmp_path, monkeypatch):
+    """欠けている銘柄だけ直近を取得して継ぎ足し、1時間以内は取り直さない。新しい銘柄はそのまま。"""
+    monkeypatch.setattr(D, "CACHE", tmp_path / "cache")
+    D.CACHE.mkdir()
+    now = datetime(2026, 11, 10, 0, 0, tzinfo=timezone.utc)
+    old = D._adjust(_bars("2026-11-06", 100.0, 300))
+    D._save(old, D._latest_path("AAA"))
+    D._save(old, D._cache_path("AAA", "20261110"))
+    D._save(D._adjust(_bars("2026-11-09", 400.0)), D._latest_path("ZZZ"))
+    calls = []
+
+    def download(symbols, **kw):
+        calls.append((list(symbols), kw.get("period")))
+        return pd.concat({s: _bars("2026-11-09", 101.0 if s == "AAA" else 9.0, 20) for s in symbols}, axis=1)
+
+    monkeypatch.setitem(sys.modules, "yfinance", types.SimpleNamespace(download=download))
+    out = D.top_up(["AAA", "ZZZ"], now)
+    assert calls == [(["AAA"], D.RECENT_PERIOD)]
+    assert out == {"refreshed": ["AAA"], "still_behind": [], "skipped": []}
+    for path in (D._latest_path("AAA"), D._cache_path("AAA", "20261110")):
+        df = pd.read_pickle(path)
+        assert str(df.index[-1].date()) == "2026-11-09" and df["close"].iloc[-1] == 101.0
+        assert len(df) > 300 and df.index.is_unique and df["close"].iloc[0] == 100.0   # 古い履歴は残る
+    assert pd.read_pickle(D._latest_path("ZZZ"))["close"].iloc[-1] == 400.0
+    assert D.top_up(["AAA"], now)["refreshed"] == [] and len(calls) == 1
+
+
+def test_top_up_records_holiday_as_still_behind(tmp_path, monkeypatch):
+    """取得しても足が増えない（休場・取得遅れ）なら still_behind に残し、1時間は取り直さない。取得の失敗でも例外を出さない。"""
+    monkeypatch.setattr(D, "CACHE", tmp_path / "cache")
+    D.CACHE.mkdir()
+    now = datetime(2026, 11, 10, 0, 0, tzinfo=timezone.utc)
+    D._save(D._adjust(_bars("2026-11-06", 100.0)), D._latest_path("AAA"))
+
+    def boom(symbols, **kw):
+        raise OSError("down")
+
+    monkeypatch.setitem(sys.modules, "yfinance", types.SimpleNamespace(download=boom))
+    assert D.top_up(["AAA"], now) == {"refreshed": [], "still_behind": ["AAA"], "skipped": []}
+    assert D.top_up(["AAA"], now)["skipped"] == ["AAA"]
+
+
+def test_bar_saved_mid_session_is_refreshed(tmp_path, monkeypatch):
+    """取引中に保存された足（例: 12:00 UTC に保存した暗号資産の当日足）は、日付が揃っていても取り直す。"""
+    import os
+
+    monkeypatch.setattr(D, "CACHE", tmp_path / "cache")
+    D.CACHE.mkdir()
+    now = datetime(2026, 11, 10, 3, 0, tzinfo=timezone.utc)
+    idx = pd.date_range(end="2026-11-09", periods=30, freq="D")
+    partial = D._adjust(pd.DataFrame({"Open": 1.0, "High": 2.0, "Low": 0.5, "Close": 1.0, "Adj Close": 1.0, "Volume": 1.0}, index=idx))
+    D._save(partial, D._latest_path("BTC-USD"))
+    noon = datetime(2026, 11, 9, 12, 0, tzinfo=timezone.utc).timestamp()
+    os.utime(D._latest_path("BTC-USD"), (noon, noon))
+    assert D.is_behind(partial, "BTC-USD", now, datetime(2026, 11, 9, 12, 0, tzinfo=timezone.utc)) is True
+    assert D.is_behind(partial, "BTC-USD", now, datetime(2026, 11, 10, 1, 0, tzinfo=timezone.utc)) is False
+
+    def download(symbols, **kw):
+        return pd.concat({"BTC-USD": pd.DataFrame({"Open": 1.0, "High": 2.0, "Low": 0.5, "Close": 1.5, "Adj Close": 1.5, "Volume": 1.0},
+                                                   index=pd.date_range(end="2026-11-10", periods=10, freq="D"))}, axis=1)
+
+    monkeypatch.setitem(sys.modules, "yfinance", types.SimpleNamespace(download=download))
+    assert D.top_up(["BTC-USD"], now)["refreshed"] == ["BTC-USD"]
+    df = D.drop_incomplete(pd.read_pickle(D._latest_path("BTC-USD")), "BTC-USD", now)
+    assert str(df.index[-1].date()) == "2026-11-09" and df["close"].iloc[-1] == 1.5   # 途中の値が確定値に置き換わる

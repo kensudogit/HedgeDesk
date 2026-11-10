@@ -247,6 +247,10 @@ def test_price_reaction_pending_and_stale():
     assert news.price_reaction(df, "AAPL", NOW - timedelta(hours=1), NOW)["status"] == "pending"
     old = bars_until("2026-10-30")
     assert news.price_reaction(old, "AAPL", None, NOW)["stale"] is True
+    # 2026-11-10 の不具合: 火曜の朝（NY 月曜の引け後）に金曜の足しかないのに「最新」と表示していた。
+    tue_morning = datetime(2026, 11, 10, 0, 0, tzinfo=timezone.utc)
+    assert news.price_reaction(bars_until("2026-11-06"), "SPY", None, tue_morning)["stale"] is True
+    assert news.price_reaction(bars_until("2026-11-09"), "SPY", None, tue_morning)["stale"] is False
     assert news.price_reaction(None, "AAPL", None, NOW)["status"] == "no_data"
 
 

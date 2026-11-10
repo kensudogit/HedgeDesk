@@ -31,9 +31,13 @@ def test_market_snapshot_defaults_to_cache(monkeypatch):
         seen.append(refresh)
         return _mini_ctx(), {"source": "test-cache"}
 
+    topped: list[list[str]] = []
     monkeypatch.setattr("hedgedesk.research.build_context", fake_build)
+    monkeypatch.setattr("hedgedesk.data.top_up", lambda symbols, now=None: topped.append(symbols) or {})
     out = desk.market_snapshot()
     assert seen == [False]
+    # キャッシュを使うときは、最新の確定足が欠けた銘柄の補充を先に1回だけ試す（米国の前日の終値を入れるため）。
+    assert len(topped) == 1 and "SPY" in topped[0] and C.VIX in topped[0]
     assert out["source"] == "test-cache"
     assert "SPY" in out["rows"]
 
@@ -46,5 +50,6 @@ def test_market_snapshot_honors_refresh_flag(monkeypatch):
         return _mini_ctx(), {"source": "test"}
 
     monkeypatch.setattr("hedgedesk.research.build_context", fake_build)
+    monkeypatch.setattr("hedgedesk.data.top_up", lambda *a, **k: (_ for _ in ()).throw(AssertionError("全件取り直すときは補充しない")))
     desk.market_snapshot(refresh=True)
     assert seen == [True]

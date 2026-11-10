@@ -19,7 +19,7 @@ from __future__ import annotations
 import hashlib
 import os
 import warnings
-from datetime import datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -141,6 +141,20 @@ def stabilize(old: pd.DataFrame, new: pd.DataFrame) -> tuple[pd.DataFrame, bool]
     # 過去は前回の値をそのまま使い、cut 以降（直近の足と新しく増えた足）だけ新しい値にする。
 
 
+def _parse(raw: pd.DataFrame, s: str) -> pd.DataFrame:
+    """yf.download の結果から1銘柄分を取り出して調整する。列がなければ空の DataFrame。"""
+    try:
+        sub = raw[s].dropna(subset=["Close"]) if isinstance(raw.columns, pd.MultiIndex) else raw.dropna(subset=["Close"])
+        # 複数銘柄なら列が (銘柄, 項目) の MultiIndex、1銘柄だけなら単純な列になるので両方に対応する。
+        if s == "^VIX":
+            sub = sub.assign(Volume=0.0)
+            # VIX は指数で出来高がない（NaN）ので0にしておく。
+        return _adjust(sub)
+    except KeyError:
+        # 取得結果にその銘柄の列がない（上場廃止・取得失敗）なら空にする。空は quality_issues で "no data" になる。
+        return pd.DataFrame()
+
+
 def load(symbols: list[str], refresh: bool = False, now: datetime | None = None) -> tuple[dict[str, pd.DataFrame], dict]:
     """銘柄ごとのDataFrameと、取得記録（出所、期間、欠損、不備）を返す。"""
     # 引数:
@@ -171,16 +185,7 @@ def load(symbols: list[str], refresh: bool = False, now: datetime | None = None)
             warnings.simplefilter("ignore")
             raw = yf.download(missing, start=DATA_START, auto_adjust=False, progress=False, threads=False, group_by="ticker")
         for s in missing:
-            try:
-                sub = raw[s].dropna(subset=["Close"]) if isinstance(raw.columns, pd.MultiIndex) else raw.dropna(subset=["Close"])
-                # 複数銘柄なら列が (銘柄, 項目) の MultiIndex、1銘柄だけなら単純な列になるので両方に対応する。
-                if s == "^VIX":
-                    sub = sub.assign(Volume=0.0)
-                    # VIX は指数で出来高がない（NaN）ので0にしておく。
-                df = _adjust(sub)
-            except KeyError:
-                # 取得結果にその銘柄の列がない（上場廃止・取得失敗）なら空にする。空は quality_issues で "no data" になる。
-                df = pd.DataFrame()
+            df = _parse(raw, s)
             latest = _latest_path(s)
             if len(df) and latest.exists():
                 df, changed = stabilize(pd.read_pickle(latest), df)
@@ -205,6 +210,130 @@ def load(symbols: list[str], refresh: bool = False, now: datetime | None = None)
         check_vix(out[VIX_SYMBOL])
     log["fingerprint"] = fingerprint(out)
     return out, log
+
+
+# ---------------------------------------------------------------------------
+# 直近の足の補充（ブリーフとニュース用）
+# ---------------------------------------------------------------------------
+# 夜間リサーチは 21:00 JST（NY の朝、取引前）に全銘柄を取り直すので、その日の米国の終値はキャッシュに入らない。
+# 朝のブリーフ（07:15 JST）やニュースの価格反応がそのキャッシュを使うと、米国株が1営業日古くなる。
+# 全銘柄を2018年から取り直すと1分以上かかるので、最新の確定足が欠けている銘柄だけ、直近1か月分を取って継ぎ足す。
+
+RECENT_PERIOD = "1mo"
+TOP_UP_INTERVAL_SECONDS = 3600   # 同じ銘柄の補充を試すのは1時間に1回まで（休場日に取り直し続けないため）
+
+
+def expected_last_session(symbol: str, now: datetime) -> date:
+    """now の時点で確定しているはずの最新の足の日付。
+
+    暗号資産は UTC の前日。株・ETF は NY の平日で、16:15 を過ぎていればその日、前なら前の平日。
+    米国の祝日は考えない（休場日には「前営業日の足がない」と判定されるが、取り直しても増えないので害はない）。
+    """
+    if symbol.endswith("-USD"):
+        return now.astimezone(timezone.utc).date() - timedelta(days=1)
+    ny = now.astimezone(NY)
+    d = ny.date() if ny.time() >= time(16, 15) else ny.date() - timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d
+
+
+def bar_close_utc(day: date, symbol: str) -> datetime:
+    """日足1本が確定する時刻（UTC）。株・ETF は NY の16:00、暗号資産は翌日の UTC 0時。"""
+    if symbol.endswith("-USD"):
+        return datetime(day.year, day.month, day.day, tzinfo=timezone.utc) + timedelta(days=1)
+    return datetime(day.year, day.month, day.day, 16, 0, tzinfo=NY).astimezone(timezone.utc)
+
+
+def _cached(symbol: str, now: datetime) -> tuple[pd.DataFrame | None, datetime | None]:
+    """今日の日付付きスナップショット、なければ latest を読む。(データ, 保存時刻)。どちらもなければ (None, None)。"""
+    for path in (_cache_path(symbol, now.strftime("%Y%m%d")), _latest_path(symbol)):
+        if path.exists():
+            df = pd.read_pickle(path)
+            if len(df):
+                return df, datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+    return None, None
+
+
+def is_behind(df: pd.DataFrame | None, symbol: str, now: datetime, saved_at: datetime | None = None) -> bool:
+    """確定しているはずの最新の足がないか、最新の足が取引中に保存された途中の値か。データがなければ True。
+
+    saved_at（キャッシュの保存時刻）が最新の足の確定時刻より前なら、その足は途中の値なので取り直しが必要。
+    例: 夜間リサーチ（12:00 UTC）が保存した暗号資産の当日の足は、翌日には日付だけ見ると確定済みに見えるが、値は昼の時点のもの。
+    """
+    if df is None or len(df) == 0:
+        return True
+    df = drop_incomplete(df, symbol, now)
+    if len(df) == 0:
+        return True
+    last = df.index[-1].date()
+    if last < expected_last_session(symbol, now):
+        return True
+    return saved_at is not None and saved_at < bar_close_utc(last, symbol)
+
+
+def _behind(symbol: str, now: datetime) -> bool:
+    df, saved_at = _cached(symbol, now)
+    return is_behind(df, symbol, now, saved_at)
+
+
+def _attempts_path():
+    return CACHE / "top_up_attempts.json"
+
+
+def top_up(symbols: list[str], now: datetime | None = None) -> dict:
+    """最新の確定足が欠けている銘柄だけ、直近1か月分を取得してキャッシュに継ぎ足す。
+
+    継ぎ足したデータは、今日の日付付きスナップショットと latest の両方に保存する
+    （load(refresh=False) と news がどちらを読んでも新しい足が見えるように）。
+    直近の取得は、その期間の配当調整を含めた最新の値で置き換える。それより前の足は夜間リサーチの全件取得に任せる。
+
+    Returns:
+        {"refreshed": 足が増えた銘柄, "still_behind": 取得しても足りない銘柄（休場か取得遅れ）, "skipped": 1時間以内に試した銘柄}。
+    例外は出さない（取得の失敗は still_behind に残す）。
+    """
+    import json
+
+    now = now or datetime.now(timezone.utc)
+    behind = [s for s in dict.fromkeys(symbols) if _behind(s, now)]
+    if not behind:
+        return {"refreshed": [], "still_behind": [], "skipped": []}
+    try:
+        attempts = json.loads(_attempts_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        attempts = {}
+    due, skipped = [], []
+    for s in behind:
+        last = attempts.get(s)
+        if last and (now - datetime.fromisoformat(last)).total_seconds() < TOP_UP_INTERVAL_SECONDS:
+            skipped.append(s)
+        else:
+            due.append(s)
+    refreshed = []
+    if due:
+        CACHE.mkdir(parents=True, exist_ok=True)
+        for s in due:
+            attempts[s] = now.isoformat(timespec="seconds")
+        _attempts_path().write_text(json.dumps(attempts), encoding="utf-8")
+        try:
+            import yfinance as yf
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                raw = yf.download(due, period=RECENT_PERIOD, auto_adjust=False, progress=False, threads=False, group_by="ticker")
+        except Exception:  # noqa: BLE001 - 取得の失敗で呼び出し元（ブリーフ・ニュース）を止めない
+            raw = None
+        for s in due:
+            new = _parse(raw, s) if raw is not None else pd.DataFrame()
+            old, _ = _cached(s, now)
+            if len(new) == 0 or old is None:
+                continue
+            merged = pd.concat([old[old.index < new.index[0]], new])
+            _save(merged, _latest_path(s))
+            _save(merged, _cache_path(s, now.strftime("%Y%m%d")))
+            refreshed.append(s)
+    still = [s for s in due if _behind(s, now)]
+    return {"refreshed": refreshed, "still_behind": still, "skipped": skipped}
 
 
 def check_vix(df: pd.DataFrame) -> None:

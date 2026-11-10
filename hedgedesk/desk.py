@@ -297,6 +297,12 @@ def market_snapshot(refresh: bool | None = None) -> dict:
 
     if refresh is None:
         refresh = os.environ.get("HEDGEDESK_BRIEF_MARKET_REFRESH", "").strip().lower() in ("1", "true", "yes")
+    if not refresh:
+        # キャッシュは夜間リサーチ（NY の取引前）のものなので、米国の前日の終値が入っていない。
+        # 最新の確定足が欠けている銘柄だけ、直近1か月分を取って継ぎ足す（全件の取り直しより速い）。
+        from . import data as D
+
+        D.top_up(C.INDEX_ETFS + C.SECTOR_ETFS + C.ETFS + C.STOCKS + C.CRYPTO + [C.VIX])
     ctx, log = build_context(refresh=refresh)
     rows = {}
     for s in C.INDEX_ETFS + C.SECTOR_ETFS + C.CRYPTO:

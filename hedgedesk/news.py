@@ -57,8 +57,6 @@ FRESHNESS = [
 UNKNOWN_WEIGHT = 0.6        # 公開時刻が読めない見出しの重み（収集時刻で期間だけは判定する）
 SCOUT_STALE_MINUTES = 45    # Scout は30分ごと。これを超えて収集がなければ「収集が止まっている」とみなす
 ANALYSIS_STALE_MINUTES = 90  # AI 分析の最終成功がこれより古く、未分析が残っていれば「分析が遅れている」とみなす
-# 日足の最終足がこの暦日数より古ければ「価格が古い」とみなす。株は週末と祝日をまたぐので長めにする。
-PRICE_STALE_DAYS = {"equity": 4, "crypto": 2}
 # 価格反応を「普段の値動き」と比べるときの期間（日次リターンの標準偏差を取る本数）。
 SIGMA_BARS = 20
 # 画面とファイルに載せる最大件数。
@@ -477,7 +475,7 @@ def price_reaction(df, symbol: str, published: datetime | None, now: datetime) -
         z（reaction ÷ (普段の日次の値動き × √本数)。|z| が大きいほど普段より大きく動いた）。
         日足なので、同じ日の中での反応は分からない。値はすべて計算値で、推定や補完はしない。
     """
-    from .data import drop_incomplete
+    from .data import drop_incomplete, expected_last_session
 
     base = {"symbol": symbol, "as_of": None, "close": None, "ret_1d": None, "stale": None,
             "status": "no_data", "reaction": None, "bars_after": None, "z": None}
@@ -488,11 +486,12 @@ def price_reaction(df, symbol: str, published: datetime | None, now: datetime) -
         return base
     closes = df["close"]
     last_day = df.index[-1].date()
-    kind = "crypto" if symbol.endswith("-USD") else "equity"
     out = {
         **base, "as_of": last_day.isoformat(), "close": round(float(closes.iloc[-1]), 4),
         "ret_1d": round(float(closes.iloc[-1] / closes.iloc[-2] - 1), 4),
-        "stale": (now - _close_time(last_day, symbol)) > timedelta(days=PRICE_STALE_DAYS[kind]),
+        # 確定しているはずの最新の足（株は前の平日、暗号資産は UTC の前日）がなければ古い。
+        # 米国の祝日もこの判定では「古い」になる（画面で「休場日なら正常」と添える）。
+        "stale": last_day < expected_last_session(symbol, now),
     }
     if published is None:
         return {**out, "status": "no_time"}
@@ -559,6 +558,23 @@ def _minutes_since(iso: str | None, now: datetime) -> int | None:
     """ISO 時刻からの経過分数。None なら None。"""
     t = parse_time(iso)
     return None if t is None else int((now - t).total_seconds() // 60)
+
+
+def _top_up_prices(items: list[dict], now: datetime) -> None:
+    """価格反応に使う銘柄のうち、最新の確定足が欠けているものだけ直近の足を補充する。失敗しても一覧は作る。"""
+    from . import data
+
+    analyses = load_analyses()
+    syms = {"SPY"}
+    for it in items:
+        a = analyses.get(it["id"]) or {}
+        sym = it.get("symbol") or (a.get("symbols") or [None])[0]
+        if sym:
+            syms.add(sym)
+    try:
+        data.top_up(sorted(syms & _known_symbols()), now)
+    except Exception:  # noqa: BLE001 - 価格の補充に失敗しても、古い価格のまま一覧は作る（stale で表示される）
+        pass
 
 
 def build_digest(now: datetime, bars_loader=_load_bars) -> dict:
@@ -653,5 +669,6 @@ def run(now: datetime | None = None, use_ai: bool = True, client=None) -> dict:
     now = now or datetime.now(timezone.utc)
     items, _ = load_items(now)
     ai = analyze_pending(items, now, client) if use_ai else "skipped"
+    _top_up_prices(items, now)
     digest = build_digest(now)
     return {"ai": ai, "items": digest["counts"]["total"], "analyzed": digest["counts"]["analyzed"]}
