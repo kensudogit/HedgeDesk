@@ -36,6 +36,7 @@ def isolated_state(tmp_path, monkeypatch):
     monkeypatch.delenv("PORT", raising=False)
     monkeypatch.delenv("HEDGEDESK_UI_PASSWORD", raising=False)
     monkeypatch.delenv("HEDGEDESK_UI_USER", raising=False)
+    monkeypatch.delenv("HEDGEDESK_DEMO", raising=False)
 
 
 def make_bars(rows, start="2024-01-01"):

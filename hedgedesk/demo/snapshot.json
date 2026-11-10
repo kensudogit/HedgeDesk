@@ -1,0 +1,1745 @@
+{
+ "now_utc": "2026-11-10T03:46:06+00:00",
+ "last_tick": "2026-11-10T03:45:34+00:00",
+ "tick_age_seconds": 32,
+ "tick_healthy": true,
+ "champion": null,
+ "kill_switch": {
+  "active": false
+ },
+ "alpaca_keys": true,
+ "open_book": [],
+ "research_as_of": "2026-11-09T12:00:42+00:00",
+ "n_trials": 108,
+ "passed_ids": [],
+ "data_issues": {},
+ "strategies": [
+  {
+   "id": "S4_BO_STOCK",
+   "name": "出来高ブレイク（個別株）",
+   "score": 18,
+   "oos_sharpe": 0.658,
+   "dsr": 0.3339,
+   "trades": 419,
+   "max_dd": 0.067,
+   "net_pnl": 18779.2,
+   "stress_pnl": 14341.62,
+   "stress_better": false,
+   "passed": false,
+   "failures": [
+    "デフレートシャープが0.33で0.5未満"
+   ]
+  },
+  {
+   "id": "S4_BO_CRYPTO",
+   "name": "出来高ブレイク（暗号資産）",
+   "score": 16,
+   "oos_sharpe": 0.791,
+   "dsr": 0.2901,
+   "trades": 48,
+   "max_dd": 0.0246,
+   "net_pnl": 9486.02,
+   "stress_pnl": 4450.76,
+   "stress_better": false,
+   "passed": false,
+   "failures": [
+    "デフレートシャープが0.29で0.5未満",
+    "スコア16で18未満"
+   ]
+  },
+  {
+   "id": "S1_PEAD",
+   "name": "決算後ドリフト（個別株）",
+   "score": 16,
+   "oos_sharpe": 0.377,
+   "dsr": 0.1348,
+   "trades": 125,
+   "max_dd": 0.0374,
+   "net_pnl": 5404.26,
+   "stress_pnl": 10994.36,
+   "stress_better": true,
+   "passed": false,
+   "failures": [
+    "デフレートシャープが0.13で0.5未満",
+    "スコア16で18未満"
+   ]
+  },
+  {
+   "id": "S3_MR_ETF",
+   "name": "売られすぎの反発（ETF）",
+   "score": 15,
+   "oos_sharpe": 0.318,
+   "dsr": 0.1047,
+   "trades": 301,
+   "max_dd": 0.0519,
+   "net_pnl": 5598.38,
+   "stress_pnl": 3733.04,
+   "stress_better": false,
+   "passed": false,
+   "failures": [
+    "デフレートシャープが0.10で0.5未満",
+    "スコア15で18未満"
+   ]
+  },
+  {
+   "id": "S7_PULLBACK_STOCK",
+   "name": "上昇トレンドの押し目（個別株）",
+   "score": 14,
+   "oos_sharpe": 0.286,
+   "dsr": 0.0923,
+   "trades": 391,
+   "max_dd": 0.0807,
+   "net_pnl": 4468.8,
+   "stress_pnl": 1926.9,
+   "stress_better": false,
+   "passed": false,
+   "failures": [
+    "デフレートシャープが0.09で0.5未満",
+    "スコア14で18未満"
+   ]
+  },
+  {
+   "id": "S8_NR_ETF",
+   "name": "値幅縮小からの上放れ（ETF）",
+   "score": 14,
+   "oos_sharpe": 0.214,
+   "dsr": 0.0674,
+   "trades": 668,
+   "max_dd": 0.0852,
+   "net_pnl": 6387.71,
+   "stress_pnl": -9908.8,
+   "stress_better": false,
+   "passed": false,
+   "failures": [
+    "1本遅れ＋スリッページ2倍で損益が0以下",
+    "デフレートシャープが0.07で0.5未満",
+    "スコア14で18未満"
+   ]
+  },
+  {
+   "id": "S4_BO_ETF",
+   "name": "出来高ブレイク（ETF）",
+   "score": 14,
+   "oos_sharpe": 0.208,
+   "dsr": 0.0655,
+   "trades": 142,
+   "max_dd": 0.0386,
+   "net_pnl": 3081.53,
+   "stress_pnl": 5512.53,
+   "stress_better": true,
+   "passed": false,
+   "failures": [
+    "デフレートシャープが0.07で0.5未満",
+    "ホールドアウトの損益が0以下",
+    "スコア14で18未満"
+   ]
+  },
+  {
+   "id": "S5_ROTATION",
+   "name": "セクターローテーション",
+   "score": 13,
+   "oos_sharpe": -0.287,
+   "dsr": 0.0033,
+   "trades": 243,
+   "max_dd": 0.0628,
+   "net_pnl": -4299.25,
+   "stress_pnl": -4385.94,
+   "stress_better": false,
+   "passed": false,
+   "failures": [
+    "OOSのコスト後損益が0以下",
+    "1本遅れ＋スリッページ2倍で損益が0以下",
+    "デフレートシャープが0.00で0.5未満",
+    "ホールドアウトの損益が0以下",
+    "スコア13で18未満"
+   ]
+  },
+  {
+   "id": "S7_PULLBACK_ETF",
+   "name": "上昇トレンドの押し目（ETF）",
+   "score": 12,
+   "oos_sharpe": -0.265,
+   "dsr": 0.0038,
+   "trades": 294,
+   "max_dd": 0.1034,
+   "net_pnl": -4911.0,
+   "stress_pnl": -925.62,
+   "stress_better": true,
+   "passed": false,
+   "failures": [
+    "OOSのコスト後損益が0以下",
+    "1本遅れ＋スリッページ2倍で損益が0以下",
+    "デフレートシャープが0.00で0.5未満",
+    "スコア12で18未満"
+   ]
+  },
+  {
+   "id": "S3_MR_CRYPTO",
+   "name": "売られすぎの反発（暗号資産）",
+   "score": 11,
+   "oos_sharpe": 0.134,
+   "dsr": 0.0172,
+   "trades": 58,
+   "max_dd": 0.0141,
+   "net_pnl": 940.09,
+   "stress_pnl": -2470.39,
+   "stress_better": false,
+   "passed": false,
+   "failures": [
+    "1本遅れ＋スリッページ2倍で損益が0以下",
+    "デフレートシャープが0.02で0.5未満",
+    "スコア11で18未満"
+   ]
+  },
+  {
+   "id": "S6_VOL",
+   "name": "ボラティリティ局面の転換",
+   "score": 11,
+   "oos_sharpe": -0.015,
+   "dsr": 0.0199,
+   "trades": 66,
+   "max_dd": 0.0277,
+   "net_pnl": -125.82,
+   "stress_pnl": -2277.83,
+   "stress_better": false,
+   "passed": false,
+   "failures": [
+    "OOSのコスト後損益が0以下",
+    "1本遅れ＋スリッページ2倍で損益が0以下",
+    "デフレートシャープが0.02で0.5未満",
+    "ホールドアウトの損益が0以下",
+    "スコア11で18未満"
+   ]
+  }
+ ],
+ "blocked": [
+  {
+   "id": "S2_NEWS_MOM",
+   "name": "ニュース後モメンタム",
+   "reason": "銘柄別の過去ニュースのデータがない。Alpacaのキーが入ったら、ニュースAPIの提供範囲を確認して再検討する。"
+  }
+ ],
+ "events": [
+  {
+   "date": "2026-11-10",
+   "name": "米CPI（10月分）08:30 ET",
+   "kind": "CPI",
+   "source": "https://thriveinmarkets.com/calendar/dates/cpi-2026/",
+   "official_confirmed": false,
+   "note": "第三者カレンダー。BLSは自動取得を拒否するため原文未確認"
+  }
+ ],
+ "events_as_of": "2026-11-10T00:18:52+00:00",
+ "schedule": [
+  {
+   "job": "Scout（ニュース収集）",
+   "when": "30分ごと",
+   "runner": "tickコンテナ"
+  },
+  {
+   "job": "ニュース分析（翻訳・センチメント・重要度）",
+   "when": "収集の直後",
+   "runner": "tickコンテナ"
+  },
+  {
+   "job": "キルスイッチ監視、約定確認",
+   "when": "5分ごと",
+   "runner": "tickコンテナ"
+  },
+  {
+   "job": "株のシグナル判定と審査",
+   "when": "米国の引け後（NY 16:15）",
+   "runner": "tickコンテナ"
+  },
+  {
+   "job": "株の再審査、発注",
+   "when": "NY 08:45、09:15",
+   "runner": "tickコンテナ"
+  },
+  {
+   "job": "暗号資産のシグナル判定と発注",
+   "when": "09:05 JST",
+   "runner": "tickコンテナ"
+  },
+  {
+   "job": "夜間リサーチ（Strategist）",
+   "when": "毎日 21:00 JST",
+   "runner": "jobsコンテナ"
+  },
+  {
+   "job": "モーニングブリーフ",
+   "when": "毎日 07:15 JST",
+   "runner": "jobsコンテナ"
+  },
+  {
+   "job": "週次レビュー",
+   "when": "日曜 10:00 JST",
+   "runner": "jobsコンテナ"
+  }
+ ],
+ "journal": [
+  {
+   "ts": "2026-11-09T22:41:08+00:00",
+   "kind": "job_done",
+   "agent": "Chief of Staff",
+   "job": "brief",
+   "result": "/app/briefs/2026-11-10.md"
+  },
+  {
+   "ts": "2026-11-09T22:41:08+00:00",
+   "kind": "brief",
+   "agent": "Chief of Staff",
+   "path": "2026-11-10.md"
+  },
+  {
+   "ts": "2026-11-09T12:02:25+00:00",
+   "kind": "job_done",
+   "agent": "Chief of Staff",
+   "job": "research",
+   "result": "合格0本、全108試行"
+  },
+  {
+   "ts": "2026-11-09T12:02:24+00:00",
+   "kind": "research",
+   "agent": "Strategist",
+   "TICKER": "etf",
+   "IDEA": "S8_NR_ETF",
+   "EVIDENCE": {
+    "score": 14,
+    "oos": {
+     "sharpe": 0.214,
+     "total_return": 0.063,
+     "max_drawdown": 0.0852,
+     "trades": 668,
+     "win_rate": 0.425,
+     "expectancy_r": 0.0159,
+     "net_pnl": 6387.71
+    },
+    "dsr": 0.0674
+   },
+   "NEXT_STEP": "rejected: 1本遅れ＋スリッページ2倍で損益が0以下; デフレートシャープが0.07で0.5未満; スコア14で18未満"
+  },
+  {
+   "ts": "2026-11-09T12:02:24+00:00",
+   "kind": "research",
+   "agent": "Strategist",
+   "TICKER": "stock",
+   "IDEA": "S7_PULLBACK_STOCK",
+   "EVIDENCE": {
+    "score": 14,
+    "oos": {
+     "sharpe": 0.286,
+     "total_return": 0.0417,
+     "max_drawdown": 0.0807,
+     "trades": 391,
+     "win_rate": 0.601,
+     "expectancy_r": 0.0229,
+     "net_pnl": 4468.8
+    },
+    "dsr": 0.0923
+   },
+   "NEXT_STEP": "rejected: デフレートシャープが0.09で0.5未満; スコア14で18未満"
+  },
+  {
+   "ts": "2026-11-09T12:02:24+00:00",
+   "kind": "research",
+   "agent": "Strategist",
+   "TICKER": "etf",
+   "IDEA": "S7_PULLBACK_ETF",
+   "EVIDENCE": {
+    "score": 12,
+    "oos": {
+     "sharpe": -0.265,
+     "total_return": -0.0494,
+     "max_drawdown": 0.1034,
+     "trades": 294,
+     "win_rate": 0.568,
+     "expectancy_r": -0.0441,
+     "net_pnl": -4911.0
+    },
+    "dsr": 0.0038
+   },
+   "NEXT_STEP": "rejected: OOSのコスト後損益が0以下; 1本遅れ＋スリッページ2倍で損益が0以下; デフレートシャープが0.00で0.5未満; スコア12で18未満"
+  },
+  {
+   "ts": "2026-11-09T12:02:24+00:00",
+   "kind": "research",
+   "agent": "Strategist",
+   "TICKER": "etf",
+   "IDEA": "S6_VOL",
+   "EVIDENCE": {
+    "score": 11,
+    "oos": {
+     "sharpe": -0.015,
+     "total_return": -0.0017,
+     "max_drawdown": 0.0277,
+     "trades": 66,
+     "win_rate": 0.576,
+     "expectancy_r": -0.0045,
+     "net_pnl": -125.82
+    },
+    "dsr": 0.0199
+   },
+   "NEXT_STEP": "rejected: OOSのコスト後損益が0以下; 1本遅れ＋スリッページ2倍で損益が0以下; デフレートシャープが0.02で0.5未満; ホールドアウトの損益が0以下; スコア11で18未満"
+  },
+  {
+   "ts": "2026-11-09T12:02:24+00:00",
+   "kind": "research",
+   "agent": "Strategist",
+   "TICKER": "etf",
+   "IDEA": "S5_ROTATION",
+   "EVIDENCE": {
+    "score": 13,
+    "oos": {
+     "sharpe": -0.287,
+     "total_return": -0.0428,
+     "max_drawdown": 0.0628,
+     "trades": 243,
+     "win_rate": 0.514,
+     "expectancy_r": -0.0443,
+     "net_pnl": -4299.25
+    },
+    "dsr": 0.0033
+   },
+   "NEXT_STEP": "rejected: OOSのコスト後損益が0以下; 1本遅れ＋スリッページ2倍で損益が0以下; デフレートシャープが0.00で0.5未満; ホールドアウトの損益が0以下; スコア13で18未満"
+  },
+  {
+   "ts": "2026-11-09T12:02:24+00:00",
+   "kind": "research",
+   "agent": "Strategist",
+   "TICKER": "crypto",
+   "IDEA": "S4_BO_CRYPTO",
+   "EVIDENCE": {
+    "score": 16,
+    "oos": {
+     "sharpe": 0.791,
+     "total_return": 0.0983,
+     "max_drawdown": 0.0246,
+     "trades": 48,
+     "win_rate": 0.562,
+     "expectancy_r": 0.397,
+     "net_pnl": 9486.02
+    },
+    "dsr": 0.2901
+   },
+   "NEXT_STEP": "rejected: デフレートシャープが0.29で0.5未満; スコア16で18未満"
+  },
+  {
+   "ts": "2026-11-09T12:02:24+00:00",
+   "kind": "research",
+   "agent": "Strategist",
+   "TICKER": "stock",
+   "IDEA": "S4_BO_STOCK",
+   "EVIDENCE": {
+    "score": 18,
+    "oos": {
+     "sharpe": 0.658,
+     "total_return": 0.1999,
+     "max_drawdown": 0.067,
+     "trades": 419,
+     "win_rate": 0.451,
+     "expectancy_r": 0.1012,
+     "net_pnl": 18779.2
+    },
+    "dsr": 0.3339
+   },
+   "NEXT_STEP": "rejected: デフレートシャープが0.33で0.5未満"
+  }
+ ],
+ "headlines": [
+  {
+   "source": "Yahoo Finance",
+   "symbol": "QQQ",
+   "title": "He Watches the Nasdaq Plunge 5.5% at 63. Claiming Social Security to Avoid Selling Stocks Could Lock In a Smaller Check for Life",
+   "link": "https://247wallst.com/personal-finance/social-security/2026/11/09/he-watches-the-nasdaq-plunge-5-5-at-63-claiming-social-security-to-avoid-selling-stocks-could-lock-in-a-smaller-check-for-life/?.tsrc=rss",
+   "published": "Tue, 10 Nov 2026 02:07:23 +0000",
+   "summary": "A brutal Nasdaq selloff tempts a 63-year-old to start Social Security and leave his shrinking stocks alone. The move feels safe today, but a quiet trade-off could follow him into his 80s and reach his spouse too.",
+   "collected_utc": "2026-11-10T02:57:30+00:00"
+  },
+  {
+   "source": "Yahoo Finance",
+   "symbol": "QQQ",
+   "title": "One Bad Day: A levered-QQQ ETF Case Study",
+   "link": "http://www.etf.com/sections/equity/one-bad-day-levered-qqq-etf-case-study?utm_source=yahoo-finance&utm_medium=rss&utm_campaign=yahoo-finance-rss&.tsrc=rss",
+   "published": "Tue, 10 Nov 2026 01:03:17 +0000",
+   "summary": "Big surprise moves in the market often serve as great lessons in how market structure actually works.",
+   "collected_utc": "2026-11-10T02:57:30+00:00"
+  },
+  {
+   "source": "Yahoo Finance",
+   "symbol": "BTC-USD",
+   "title": "HIVE Digital Mines 49% More Bitcoin but Posts $78.7M Quarterly Loss",
+   "link": "https://www.cryptoprowl.com/releases/hive-digital-mines-49-more-bitcoin-but-posts-787m-quarterly-loss-7788?.tsrc=rss",
+   "published": "Tue, 10 Nov 2026 02:05:00 +0000",
+   "summary": "Bitcoin miner and AI infrastructure company HIVE Digital Technologies (NASDAQ: $HIVE) reported fiscal second-quarte...",
+   "collected_utc": "2026-11-10T02:57:30+00:00"
+  },
+  {
+   "source": "Yahoo Finance",
+   "symbol": "BTC-USD",
+   "title": "Strategy (MSTR) Is Building A Global Bitcoin Bank",
+   "link": "https://finance.yahoo.com/markets/crypto/articles/strategy-mstr-building-global-bitcoin-021814783.html?.tsrc=rss",
+   "published": "Tue, 10 Nov 2026 02:18:14 +0000",
+   "summary": "MicroStrategy (NasdaqGS:MSTR) outlined plans to become a global Bitcoin bank at a major fintech conference, as described by CEO Phong Le. Phong Le detailed efforts to link traditional finance services with decentralized Bitcoin holdings for institutional clients. The corporation aims to build full-scale institutional Bitcoin banking capabilities that integrate with existing financial infrastructure. MicroStrategy's push toward full-scale institutional Bitcoin banking is a major shift that...",
+   "collected_utc": "2026-11-10T02:57:30+00:00"
+  },
+  {
+   "source": "Yahoo Finance",
+   "symbol": "BTC-USD",
+   "title": "MARA Q3 Earnings Call Highlights",
+   "link": "https://www.marketbeat.com/instant-alerts/transcript-mara-q3-earnings-call-highlights-2026-11-09/?utm_source=yahoofinance&utm_medium=yahoofinance&.tsrc=rss",
+   "published": "Tue, 10 Nov 2026 01:14:44 +0000",
+   "summary": "MARA (NASDAQ:MARA) reported a sharp rise in third-quarter profit despite lower revenue, as gains in the value of its Bitcoin holdings boosted results. The company also outlined plans to expand its power portfolio and convert sites into artificial intelligence and high-performance computing infrastru",
+   "collected_utc": "2026-11-10T01:30:54+00:00"
+  },
+  {
+   "source": "Yahoo Finance",
+   "symbol": "SPY",
+   "title": "Risk-On: S&P 500 Surges Out of the Gate, Adds $1 Trillion in Market Value",
+   "link": "https://247wallst.com/investing/2026/11/09/risk-on-sp-500-surges-out-of-the-gate-adds-1-trillion-in-market-value/?.tsrc=rss",
+   "published": "Mon, 09 Nov 2026 15:09:09 +0000",
+   "summary": "Dip buyers rushed back into tech before lunch, yet the market's fear gauge had just posted one of its biggest jumps in decades. With the Fed speaking at 2:00 p.m., can this rebound hold?",
+   "collected_utc": "2026-11-10T00:52:03+00:00"
+  },
+  {
+   "source": "Yahoo Finance",
+   "symbol": "SPY",
+   "title": "Winmark Stock Is Down More Than 30% in 2026. Here’s What $1,000 Became in 10 Years",
+   "link": "https://247wallst.com/investing/2026/11/09/winmark-stock-is-down-more-than-30-in-2026-heres-what-1000-became-in-10-years/?.tsrc=rss",
+   "published": "Mon, 09 Nov 2026 19:47:01 +0000",
+   "summary": "Winmark collects royalties from thousands of resale stores without owning a single one, yet its stock keeps stumbling. Five missed earnings reports and a surprising marketing bet explain why a long-term winner suddenly looks risky.",
+   "collected_utc": "2026-11-10T00:52:03+00:00"
+  },
+  {
+   "source": "Yahoo Finance",
+   "symbol": "SPY",
+   "title": "ETFs Are Net Sellers of JPMorgan Chase (JPM) on Nov. 5",
+   "link": "https://finance.yahoo.com/markets/stocks/articles/etfs-net-sellers-jpmorgan-chase-110250046.html?.tsrc=rss",
+   "published": "Mon, 09 Nov 2026 11:02:50 +0000",
+   "summary": "ETFs sold $144.5 million of JPMorgan Chase on Thursday, Nov. 5.",
+   "collected_utc": "2026-11-10T00:52:03+00:00"
+  },
+  {
+   "source": "Yahoo Finance",
+   "symbol": "SPY",
+   "title": "ETFs Are Net Sellers of Berkshire Hathaway (BRK.B) on Nov. 5",
+   "link": "https://finance.yahoo.com/markets/stocks/articles/etfs-net-sellers-berkshire-hathaway-110259946.html?.tsrc=rss",
+   "published": "Mon, 09 Nov 2026 11:02:59 +0000",
+   "summary": "ETFs sold a net $136.3 million of Berkshire Hathaway (BRK.B) on Thursday, Nov. 5.",
+   "collected_utc": "2026-11-10T00:52:03+00:00"
+  },
+  {
+   "source": "Yahoo Finance",
+   "symbol": "SPY",
+   "title": "ETFs Are Net Sellers of Caterpillar (CAT) on Thursday",
+   "link": "https://finance.yahoo.com/markets/stocks/articles/etfs-net-sellers-caterpillar-cat-110319503.html?.tsrc=rss",
+   "published": "Mon, 09 Nov 2026 11:03:19 +0000",
+   "summary": "ETFs sold a net $90.0 million of Caterpillar stock on Thursday.",
+   "collected_utc": "2026-11-10T00:52:03+00:00"
+  },
+  {
+   "source": "Yahoo Finance",
+   "symbol": "SPY",
+   "title": "ETFs Are Net Sellers of Johnson & Johnson (JNJ) on Nov. 5",
+   "link": "https://finance.yahoo.com/markets/stocks/articles/etfs-net-sellers-johnson-johnson-110343852.html?.tsrc=rss",
+   "published": "Mon, 09 Nov 2026 11:03:43 +0000",
+   "summary": "ETFs sold a net $68.4 million of Johnson & Johnson stock on Nov. 5.",
+   "collected_utc": "2026-11-10T00:52:03+00:00"
+  },
+  {
+   "source": "Yahoo Finance",
+   "symbol": "SPY",
+   "title": "ETFs Are Net Sellers of NextEra Energy (NEE) on Thursday",
+   "link": "https://finance.yahoo.com/markets/stocks/articles/etfs-net-sellers-nextera-energy-110357659.html?.tsrc=rss",
+   "published": "Mon, 09 Nov 2026 11:03:57 +0000",
+   "summary": "ETFs sold $65.7 million in NextEra Energy shares on Nov. 5.",
+   "collected_utc": "2026-11-10T00:52:03+00:00"
+  }
+ ],
+ "news": {
+  "as_of_utc": "2026-11-10T03:30:32+00:00",
+  "notice": "外部ニュースの自動分析です。売買判断・発注には使っていません。投資助言ではありません。",
+  "ai": {
+   "configured": true,
+   "model": "claude-opus-5-5",
+   "prompt_version": "news-v2",
+   "last_attempt_utc": "2026-11-10T03:30:32+00:00",
+   "last_success_utc": "2026-11-10T02:57:30+00:00",
+   "last_status": "idle",
+   "last_errors": []
+  },
+  "freshness": {
+   "scout_last_collected_utc": "2026-11-10T03:30:32+00:00",
+   "scout_age_minutes": 0,
+   "scout_stale": false,
+   "newest_published_utc": "2026-11-10T02:18:14+00:00",
+   "analysis_age_minutes": 33,
+   "analysis_stale": false,
+   "price_stale_symbols": [
+    "BTC-USD",
+    "ETH-USD"
+   ],
+   "window_hours": 72
+  },
+  "counts": {
+   "total": 153,
+   "analyzed": 153,
+   "pending": 0,
+   "expired_excluded": 133
+  },
+  "items": [
+   {
+    "id": "6283197d2929e64f",
+    "symbol": "BTC-USD",
+    "source": "Yahoo Finance",
+    "title": "MARA Books $632M Q3 Profit, Sells 13,597 Bitcoin to Pay Down Debt",
+    "link": "https://www.cryptoprowl.com/releases/mara-books-632m-q3-profit-sells-13597-bitcoin-to-pay-down-debt-7784?.tsrc=rss",
+    "published_utc": "2026-11-09T23:56:00+00:00",
+    "freshness": {
+     "level": "fresh",
+     "label": "新鮮",
+     "age_minutes": 214,
+     "weight": 1.0
+    },
+    "price": {
+     "symbol": "BTC-USD",
+     "as_of": "2026-11-08",
+     "close": 74584.6484,
+     "ret_1d": -0.0154,
+     "stale": true,
+     "status": "pending",
+     "reaction": null,
+     "bars_after": null,
+     "z": null,
+     "proxy": false
+    },
+    "analysis": {
+     "title_ja": "MARA、第3四半期に6億3200万ドルの利益を計上、債務返済のためビットコイン13,597枚を売却",
+     "sentiment": "negative",
+     "sentiment_score": -0.3,
+     "impact": 3,
+     "category": "crypto",
+     "symbols": [
+      "BTC-USD"
+     ],
+     "reason_ja": "大手マイナーによる約1.4万BTCの売却は市場への売り圧力となり、BTC価格には弱い悪材料。",
+     "model": "claude-opus-5-5",
+     "analyzed_utc": "2026-11-10T00:52:03+00:00",
+     "kind": "new",
+     "sentiment_label": "悪材料",
+     "category_label": "暗号資産"
+    },
+    "importance": {
+     "total": 43,
+     "label": "低",
+     "components": {
+      "impact": 24,
+      "sentiment": 4.5,
+      "relevance": 10,
+      "price": 0
+     },
+     "freshness_weight": 1.0
+    },
+    "analysis_error": null
+   },
+   {
+    "id": "d08149e06e67d53f",
+    "symbol": "BTC-USD",
+    "source": "Yahoo Finance",
+    "title": "Bitcoin ETF Outflows Hit $1.28B as Rate Hike Bets Climb",
+    "link": "https://www.ccn.com/news/crypto/bitcoin-etf-outflows-1-28b-fed-rate-hike/?.tsrc=rss",
+    "published_utc": "2026-11-09T10:25:15+00:00",
+    "freshness": {
+     "level": "today",
+     "label": "24時間以内",
+     "age_minutes": 1025,
+     "weight": 0.8
+    },
+    "price": {
+     "symbol": "BTC-USD",
+     "as_of": "2026-11-08",
+     "close": 74584.6484,
+     "ret_1d": -0.0154,
+     "stale": true,
+     "status": "pending",
+     "reaction": null,
+     "bars_after": null,
+     "z": null,
+     "proxy": false
+    },
+    "analysis": {
+     "title_ja": "Bitcoin ETFの流出額が12.8億ドルに、利上げ観測が高まる",
+     "sentiment": "negative",
+     "sentiment_score": -0.6,
+     "impact": 3,
+     "category": "crypto",
+     "symbols": [
+      "BTC-USD"
+     ],
+     "reason_ja": "週間12.8億ドルのETF流出と利上げ観測の高まりは需給・マクロ両面で悪材料。",
+     "model": "claude-opus-5-5",
+     "analyzed_utc": "2026-11-09T10:50:31+00:00",
+     "kind": "new",
+     "sentiment_label": "悪材料",
+     "category_label": "暗号資産"
+    },
+    "importance": {
+     "total": 38,
+     "label": "低",
+     "components": {
+      "impact": 24,
+      "sentiment": 9.0,
+      "relevance": 10,
+      "price": 0
+     },
+     "freshness_weight": 0.8
+    },
+    "analysis_error": null
+   },
+   {
+    "id": "09562452913f1256",
+    "symbol": "BTC-USD",
+    "source": "Yahoo Finance",
+    "title": "Bitcoin slips to $74k as regulatory uncertainty, ETF outflows weigh",
+    "link": "https://finance.yahoo.com/markets/crypto/articles/bitcoin-slips-74k-regulatory-uncertainty-071620566.html?.tsrc=rss",
+    "published_utc": "2026-11-09T07:16:20+00:00",
+    "freshness": {
+     "level": "today",
+     "label": "24時間以内",
+     "age_minutes": 1214,
+     "weight": 0.8
+    },
+    "price": {
+     "symbol": "BTC-USD",
+     "as_of": "2026-11-08",
+     "close": 74584.6484,
+     "ret_1d": -0.0154,
+     "stale": true,
+     "status": "pending",
+     "reaction": null,
+     "bars_after": null,
+     "z": null,
+     "proxy": false
+    },
+    "analysis": {
+     "title_ja": "規制の不透明感とETFからの資金流出が重しとなり、Bitcoinは7万4000ドルに下落",
+     "sentiment": "negative",
+     "sentiment_score": -0.6,
+     "impact": 3,
+     "category": "crypto",
+     "symbols": [
+      "BTC-USD"
+     ],
+     "reason_ja": "議会での民主党勝利による規制見通しの悪化とETF資金流出で下落が続いており、BTCには悪材料。",
+     "model": "claude-opus-5-5",
+     "analyzed_utc": "2026-11-09T07:32:14+00:00",
+     "kind": null,
+     "sentiment_label": "悪材料",
+     "category_label": "暗号資産"
+    },
+    "importance": {
+     "total": 38,
+     "label": "低",
+     "components": {
+      "impact": 24,
+      "sentiment": 9.0,
+      "relevance": 10,
+      "price": 0
+     },
+     "freshness_weight": 0.8
+    },
+    "analysis_error": null
+   },
+   {
+    "id": "5e5988b112a44f70",
+    "symbol": "BTC-USD",
+    "source": "Yahoo Finance",
+    "title": "Bitcoin ETFs Bleed $1.28B as 2026 Flows Turn Negative",
+    "link": "https://www.cryptoprowl.com/releases/bitcoin-etfs-bleed-128b-as-2026-flows-turn-negative-7779?.tsrc=rss",
+    "published_utc": "2026-11-09T15:42:00+00:00",
+    "freshness": {
+     "level": "today",
+     "label": "24時間以内",
+     "age_minutes": 708,
+     "weight": 0.8
+    },
+    "price": {
+     "symbol": "BTC-USD",
+     "as_of": "2026-11-08",
+     "close": 74584.6484,
+     "ret_1d": -0.0154,
+     "stale": true,
+     "status": "pending",
+     "reaction": null,
+     "bars_after": null,
+     "z": null,
+     "proxy": false
+    },
+    "analysis": {
+     "title_ja": "Bitcoin ETFから12.8億ドル流出、2026年の資金フローがマイナスに転じる",
+     "sentiment": "negative",
+     "sentiment_score": -0.5,
+     "impact": 3,
+     "category": "crypto",
+     "symbols": [
+      "BTC-USD"
+     ],
+     "reason_ja": "現物ETFからの大規模な資金流出は需給悪化を示す悪材料。",
+     "model": "claude-opus-5-5",
+     "analyzed_utc": "2026-11-09T21:10:51+00:00",
+     "kind": "new",
+     "sentiment_label": "悪材料",
+     "category_label": "暗号資産"
+    },
+    "importance": {
+     "total": 37,
+     "label": "低",
+     "components": {
+      "impact": 24,
+      "sentiment": 7.5,
+      "relevance": 10,
+      "price": 0
+     },
+     "freshness_weight": 0.8
+    },
+    "analysis_error": null
+   },
+   {
+    "id": "ea086a5c71434dff",
+    "symbol": "BTC-USD",
+    "source": "Yahoo Finance",
+    "title": "Crypto Market Today, Nov. 9: Bitcoin and Ethereum Lag as Nasdaq Surges Nearly 3%",
+    "link": "https://www.fool.com/coverage/stock-market-today/2026/11/09/crypto-market-today-nov-9-bitcoin-and-ethereum-lag-as-nasdaq-surges-nearly-3/?.tsrc=rss",
+    "published_utc": "2026-11-09T22:40:02+00:00",
+    "freshness": {
+     "level": "fresh",
+     "label": "新鮮",
+     "age_minutes": 290,
+     "weight": 1.0
+    },
+    "price": {
+     "symbol": "BTC-USD",
+     "as_of": "2026-11-08",
+     "close": 74584.6484,
+     "ret_1d": -0.0154,
+     "stale": true,
+     "status": "pending",
+     "reaction": null,
+     "bars_after": null,
+     "z": null,
+     "proxy": false
+    },
+    "analysis": {
+     "title_ja": "11月9日の暗号資産市場：Nasdaqが3%近く急騰する中、BitcoinとEthereumは出遅れ",
+     "sentiment": "negative",
+     "sentiment_score": -0.4,
+     "impact": 2,
+     "category": "crypto",
+     "symbols": [
+      "BTC-USD",
+      "ETH-USD"
+     ],
+     "reason_ja": "株式反発に追随できず、ETFからの資金流出継続と投資家心理の悪化が示されたが、当日の値動きの振り返り記事。",
+     "model": "claude-opus-5-5",
+     "analyzed_utc": "2026-11-09T23:21:38+00:00",
+     "kind": "recap",
+     "sentiment_label": "悪材料",
+     "category_label": "暗号資産"
+    },
+    "importance": {
+     "total": 36,
+     "label": "低",
+     "components": {
+      "impact": 16,
+      "sentiment": 6.0,
+      "relevance": 10,
+      "price": 0
+     },
+     "freshness_weight": 1.0
+    },
+    "analysis_error": null
+   },
+   {
+    "id": "b58d2589210bcc43",
+    "symbol": "BTC-USD",
+    "source": "Yahoo Finance",
+    "title": "Strategy (MSTR) Is Building A Global Bitcoin Bank",
+    "link": "https://finance.yahoo.com/markets/crypto/articles/strategy-mstr-building-global-bitcoin-021814783.html?.tsrc=rss",
+    "published_utc": "2026-11-10T02:18:14+00:00",
+    "freshness": {
+     "level": "fresh",
+     "label": "新鮮",
+     "age_minutes": 72,
+     "weight": 1.0
+    },
+    "price": {
+     "symbol": "BTC-USD",
+     "as_of": "2026-11-08",
+     "close": 74584.6484,
+     "ret_1d": -0.0154,
+     "stale": true,
+     "status": "pending",
+     "reaction": null,
+     "bars_after": null,
+     "z": null,
+     "proxy": false
+    },
+    "analysis": {
+     "title_ja": "Strategy (MSTR)はグローバルなビットコイン銀行を構築中",
+     "sentiment": "positive",
+     "sentiment_score": 0.3,
+     "impact": 2,
+     "category": "crypto",
+     "symbols": [
+      "BTC-USD"
+     ],
+     "reason_ja": "MSTRの機関向けビットコイン銀行構想は需要拡大期待につながるが、BTC価格への直接的影響は限定的。",
+     "model": "claude-opus-5-5",
+     "analyzed_utc": "2026-11-10T02:57:30+00:00",
+     "kind": "new",
+     "sentiment_label": "好材料",
+     "category_label": "暗号資産"
+    },
+    "importance": {
+     "total": 34,
+     "label": "低",
+     "components": {
+      "impact": 16,
+      "sentiment": 4.5,
+      "relevance": 10,
+      "price": 0
+     },
+     "freshness_weight": 1.0
+    },
+    "analysis_error": null
+   },
+   {
+    "id": "fe895c5c8b788d34",
+    "symbol": "BTC-USD",
+    "source": "Yahoo Finance",
+    "title": "$13 trillion brokerage giant offers cheapest ways to trade crypto",
+    "link": "https://www.thestreet.com/crypto/markets/13-trillion-brokerage-giant-offers-cheapest-ways-to-trade-crypto?.tsrc=rss",
+    "published_utc": "2026-11-09T22:01:17+00:00",
+    "freshness": {
+     "level": "fresh",
+     "label": "新鮮",
+     "age_minutes": 329,
+     "weight": 1.0
+    },
+    "price": {
+     "symbol": "BTC-USD",
+     "as_of": "2026-11-08",
+     "close": 74584.6484,
+     "ret_1d": -0.0154,
+     "stale": true,
+     "status": "pending",
+     "reaction": null,
+     "bars_after": null,
+     "z": null,
+     "proxy": false
+    },
+    "analysis": {
+     "title_ja": "13兆ドル規模の大手証券会社、最も安価な暗号資産取引手段を提供",
+     "sentiment": "positive",
+     "sentiment_score": 0.3,
+     "impact": 2,
+     "category": "crypto",
+     "symbols": [
+      "BTC-USD",
+      "ETH-USD"
+     ],
+     "reason_ja": "Schwabが低手数料で暗号資産取引を拡大し、個人投資家の参入経路が広がる間接的な好材料。",
+     "model": "claude-opus-5-5",
+     "analyzed_utc": "2026-11-09T22:44:50+00:00",
+     "kind": "new",
+     "sentiment_label": "好材料",
+     "category_label": "暗号資産"
+    },
+    "importance": {
+     "total": 34,
+     "label": "低",
+     "components": {
+      "impact": 16,
+      "sentiment": 4.5,
+      "relevance": 10,
+      "price": 0
+     },
+     "freshness_weight": 1.0
+    },
+    "analysis_error": null
+   },
+   {
+    "id": "09d854cfe06625f3",
+    "symbol": "SPY",
+    "source": "Yahoo Finance",
+    "title": "Risk-On: S&P 500 Surges Out of the Gate, Adds $1 Trillion in Market Value",
+    "link": "https://247wallst.com/investing/2026/11/09/risk-on-sp-500-surges-out-of-the-gate-adds-1-trillion-in-market-value/?.tsrc=rss",
+    "published_utc": "2026-11-09T15:09:09+00:00",
+    "freshness": {
+     "level": "today",
+     "label": "24時間以内",
+     "age_minutes": 741,
+     "weight": 0.8
+    },
+    "price": {
+     "symbol": "SPY",
+     "as_of": "2026-11-09",
+     "close": 752.69,
+     "ret_1d": 0.0237,
+     "stale": false,
+     "status": "ok",
+     "reaction": 0.0237,
+     "bars_after": 1,
+     "z": 1.88,
+     "proxy": false
+    },
+    "analysis": {
+     "title_ja": "リスクオン:S&P 500が寄り付きから急伸、時価総額1兆ドル増加",
+     "sentiment": "positive",
+     "sentiment_score": 0.3,
+     "impact": 2,
+     "category": "market_move",
+     "symbols": [
+      "SPY"
+     ],
+     "reason_ja": "押し目買いで急反発したが既に起きた値動きの解説でFed発言待ち。",
+     "model": "claude-opus-5-5",
+     "analyzed_utc": "2026-11-09T21:10:51+00:00",
+     "kind": "recap",
+     "sentiment_label": "好材料",
+     "category_label": "相場動向"
+    },
+    "importance": {
+     "total": 34,
+     "label": "低",
+     "components": {
+      "impact": 16,
+      "sentiment": 4.5,
+      "relevance": 10,
+      "price": 8
+     },
+     "freshness_weight": 0.8
+    },
+    "analysis_error": null
+   },
+   {
+    "id": "47fa98a87b7e0860",
+    "symbol": "DIA",
+    "source": "Yahoo Finance",
+    "title": "Stock Market Correction Or Crash? 3 Charts For The Week Ahead After The AI Sell-Off",
+    "link": "https://stocktwits.com/news-articles/markets/equity/stock-market-correction-or-crash-3-charts-for-the-week-ahead/cNGr4EOR9e1?.tsrc=rss",
+    "published_utc": "2026-11-09T10:14:59+00:00",
+    "freshness": {
+     "level": "today",
+     "label": "24時間以内",
+     "age_minutes": 1035,
+     "weight": 0.8
+    },
+    "price": {
+     "symbol": "DIA",
+     "as_of": "2026-11-09",
+     "close": 523.33,
+     "ret_1d": 0.0217,
+     "stale": false,
+     "status": "ok",
+     "reaction": 0.0217,
+     "bars_after": 1,
+     "z": 1.77,
+     "proxy": false
+    },
+    "analysis": {
+     "title_ja": "株式市場は調整か暴落か？AI関連の売りを受けた来週注目の3つのチャート",
+     "sentiment": "negative",
+     "sentiment_score": -0.3,
+     "impact": 2,
+     "category": "market_move",
+     "symbols": [],
+     "reason_ja": "先週のAI関連株の急落を振り返り今後を展望する解説記事で、新事実はなく弱気ムードを示すにとどまる。",
+     "model": "claude-opus-5-5",
+     "analyzed_utc": "2026-11-09T10:17:59+00:00",
+     "kind": "recap",
+     "sentiment_label": "悪材料",
+     "category_label": "相場動向"
+    },
+    "importance": {
+     "total": 34,
+     "label": "低",
+     "components": {
+      "impact": 16,
+      "sentiment": 4.5,
+      "relevance": 10,
+      "price": 8
+     },
+     "freshness_weight": 0.8
+    },
+    "analysis_error": null
+   },
+   {
+    "id": "2efda123faf06db1",
+    "symbol": "ETH-USD",
+    "source": "Yahoo Finance",
+    "title": "Wall Street Keeps Selling Ethereum, but Whales Are Buying In",
+    "link": "https://beincrypto.com/ethereum-whales-buy-etf-outflows/?.tsrc=rss",
+    "published_utc": "2026-11-09T05:16:29+00:00",
+    "freshness": {
+     "level": "today",
+     "label": "24時間以内",
+     "age_minutes": 1334,
+     "weight": 0.8
+    },
+    "price": {
+     "symbol": "ETH-USD",
+     "as_of": "2026-11-08",
+     "close": 2120.9802,
+     "ret_1d": -0.0516,
+     "stale": true,
+     "status": "pending",
+     "reaction": null,
+     "bars_after": null,
+     "z": null,
+     "proxy": false
+    },
+    "analysis": {
+     "title_ja": "ウォール街はEthereumの売りを続けるが、クジラは買い増し",
+     "sentiment": "mixed",
+     "sentiment_score": -0.2,
+     "impact": 3,
+     "category": "crypto",
+     "symbols": [
+      "ETH-USD"
+     ],
+     "reason_ja": "現物ETFから6週連続の資金流出と月間約14%下落は悪材料だが、一部クジラの押し目買いが下支え要因となる。",
+     "model": "claude-opus-5-5",
+     "analyzed_utc": "2026-11-09T05:58:37+00:00",
+     "kind": null,
+     "sentiment_label": "強弱混在",
+     "category_label": "暗号資産"
+    },
+    "importance": {
+     "total": 33,
+     "label": "低",
+     "components": {
+      "impact": 24,
+      "sentiment": 3.0,
+      "relevance": 10,
+      "price": 0
+     },
+     "freshness_weight": 0.8
+    },
+    "analysis_error": null
+   },
+   {
+    "id": "4987c1329db03c06",
+    "symbol": "SPY",
+    "source": "Yahoo Finance",
+    "title": "Odds of a December Rate Hike Jump to 77% After a Blowout Jobs Report",
+    "link": "https://247wallst.com/investing/2026/11/07/odds-of-a-december-rate-hike-jump-to-77-after-a-blowout-jobs-report/?.tsrc=rss",
+    "published_utc": "2026-11-07T17:33:01+00:00",
+    "freshness": {
+     "level": "aging",
+     "label": "古い",
+     "age_minutes": 3477,
+     "weight": 0.5
+    },
+    "price": {
+     "symbol": "SPY",
+     "as_of": "2026-11-09",
+     "close": 752.69,
+     "ret_1d": 0.0237,
+     "stale": false,
+     "status": "ok",
+     "reaction": 0.0237,
+     "bars_after": 1,
+     "z": 1.88,
+     "proxy": false
+    },
+    "analysis": {
+     "title_ja": "雇用統計の大幅上振れを受け、12月利上げの確率が77%に急上昇",
+     "sentiment": "negative",
+     "sentiment_score": -0.6,
+     "impact": 4,
+     "category": "macro_policy",
+     "symbols": [],
+     "reason_ja": "利上げ観測の急上昇は株式市場全体にとって金融引き締めの逆風となるため。",
+     "model": "claude-opus-5-5",
+     "analyzed_utc": "2026-11-08T13:58:16+00:00",
+     "kind": null,
+     "sentiment_label": "悪材料",
+     "category_label": "金融政策・マクロ"
+    },
+    "importance": {
+     "total": 33,
+     "label": "低",
+     "components": {
+      "impact": 32,
+      "sentiment": 9.0,
+      "relevance": 10,
+      "price": 8
+     },
+     "freshness_weight": 0.5
+    },
+    "analysis_error": null
+   },
+   {
+    "id": "3025ed50481dd116",
+    "symbol": "SPY",
+    "source": "Yahoo Finance",
+    "title": "Citigroup’s Jane Fraser Says Hedge Funds Drove the Sell-Off. Here’s Why She Doesn’t Expect It to Get Worse",
+    "link": "https://247wallst.com/investing/2026/11/09/citigroups-jane-fraser-says-hedge-funds-drove-the-sell-off-heres-why-she-doesnt-expect-it-to-get-worse/?.tsrc=rss",
+    "published_utc": "2026-11-09T14:17:08+00:00",
+    "freshness": {
+     "level": "today",
+     "label": "24時間以内",
+     "age_minutes": 793,
+     "weight": 0.8
+    },
+    "price": {
+     "symbol": "SPY",
+     "as_of": "2026-11-09",
+     "close": 752.69,
+     "ret_1d": 0.0237,
+     "stale": false,
+     "status": "ok",
+     "reaction": 0.0237,
+     "bars_after": 1,
+     "z": 1.88,
+     "proxy": false
+    },
+    "analysis": {
+     "title_ja": "CitigroupのJane Fraser氏、売りはヘッジファンド主導と指摘。さらなる悪化を予想しない理由とは",
+     "sentiment": "mixed",
+     "sentiment_score": 0.1,
+     "impact": 2,
+     "category": "market_move",
+     "symbols": [
+      "SPY"
+     ],
+     "reason_ja": "VIX急騰の売りの解説だが、大手銀行トップが悪化しないとの見方を示しており、やや安心材料。",
+     "model": "claude-opus-5-5",
+     "analyzed_utc": "2026-11-09T14:25:39+00:00",
+     "kind": "recap",
+     "sentiment_label": "強弱混在",
+     "category_label": "相場動向"
+    },
+    "importance": {
+     "total": 32,
+     "label": "低",
+     "components": {
+      "impact": 16,
+      "sentiment": 1.5,
+      "relevance": 10,
+      "price": 8
+     },
+     "freshness_weight": 0.8
+    },
+    "analysis_error": null
+   },
+   {
+    "id": "7871e5081fabd8d1",
+    "symbol": "QQQ",
+    "source": "Yahoo Finance",
+    "title": "ETF Activity: SPY Leads $2.31 Billion Outflow on Nov. 5",
+    "link": "https://finance.yahoo.com/markets/options/articles/etf-activity-spy-leads-2-110012931.html?.tsrc=rss",
+    "published_utc": "2026-11-09T11:00:12+00:00",
+    "freshness": {
+     "level": "today",
+     "label": "24時間以内",
+     "age_minutes": 990,
+     "weight": 0.8
+    },
+    "price": {
+     "symbol": "QQQ",
+     "as_of": "2026-11-09",
+     "close": 679.35,
+     "ret_1d": 0.0354,
+     "stale": false,
+     "status": "ok",
+     "reaction": 0.0354,
+     "bars_after": 1,
+     "z": 1.76,
+     "proxy": false
+    },
+    "analysis": {
+     "title_ja": "ETF動向：11月5日はSPYを筆頭に23.1億ドルの資金流出",
+     "sentiment": "mixed",
+     "sentiment_score": 0.05,
+     "impact": 2,
+     "category": "market_move",
+     "symbols": [
+      "SPY"
+     ],
+     "reason_ja": "市場全体型ETFから流出する一方、レバレッジ型ナスダック商品には資金流入しており、QQQへの影響は限定的。",
+     "model": "claude-opus-5-5",
+     "analyzed_utc": "2026-11-09T11:23:11+00:00",
+     "kind": "recap",
+     "sentiment_label": "強弱混在",
+     "category_label": "相場動向"
+    },
+    "importance": {
+     "total": 31,
+     "label": "低",
+     "components": {
+      "impact": 16,
+      "sentiment": 0.8,
+      "relevance": 10,
+      "price": 8
+     },
+     "freshness_weight": 0.8
+    },
+    "analysis_error": null
+   },
+   {
+    "id": "5dfa1d825cecc39f",
+    "symbol": "BTC-USD",
+    "source": "Yahoo Finance",
+    "title": "Bitcoin Price Prediction: Bull Market at Risk as BTC ETFs Shed $1.3 Billion in a Week",
+    "link": "https://finance.yahoo.com/markets/crypto/articles/bitcoin-price-prediction-bull-market-185708812.html?.tsrc=rss",
+    "published_utc": "2026-11-09T18:57:08+00:00",
+    "freshness": {
+     "level": "today",
+     "label": "24時間以内",
+     "age_minutes": 513,
+     "weight": 0.8
+    },
+    "price": {
+     "symbol": "BTC-USD",
+     "as_of": "2026-11-08",
+     "close": 74584.6484,
+     "ret_1d": -0.0154,
+     "stale": true,
+     "status": "pending",
+     "reaction": null,
+     "bars_after": null,
+     "z": null,
+     "proxy": false
+    },
+    "analysis": {
+     "title_ja": "ビットコイン価格予想：BTC ETFから1週間で13億ドル流出、強気相場に危機",
+     "sentiment": "negative",
+     "sentiment_score": -0.5,
+     "impact": 2,
+     "category": "crypto",
+     "symbols": [
+      "BTC-USD"
+     ],
+     "reason_ja": "ETF資金流出やロング清算、200日EMA割れを解説する見通し記事で、既に起きた下落の振り返り。",
+     "model": "claude-opus-5-5",
+     "analyzed_utc": "2026-11-10T00:52:03+00:00",
+     "kind": "recap",
+     "sentiment_label": "悪材料",
+     "category_label": "暗号資産"
+    },
+    "importance": {
+     "total": 30,
+     "label": "低",
+     "components": {
+      "impact": 16,
+      "sentiment": 7.5,
+      "relevance": 10,
+      "price": 0
+     },
+     "freshness_weight": 0.8
+    },
+    "analysis_error": null
+   },
+   {
+    "id": "4b3273bc01dc2b96",
+    "symbol": "IWM",
+    "source": "Yahoo Finance",
+    "title": "What iShares Russell 2000 Index Fund (IWM) Bought: Jackson Leads on Nov. 5",
+    "link": "https://finance.yahoo.com/markets/stocks/articles/ishares-russell-2000-index-fund-110520795.html?.tsrc=rss",
+    "published_utc": "2026-11-09T11:05:20+00:00",
+    "freshness": {
+     "level": "today",
+     "label": "24時間以内",
+     "age_minutes": 985,
+     "weight": 0.8
+    },
+    "price": {
+     "symbol": "IWM",
+     "as_of": "2026-11-09",
+     "close": 282.51,
+     "ret_1d": 0.0323,
+     "stale": false,
+     "status": "ok",
+     "reaction": 0.0323,
+     "bars_after": 1,
+     "z": 2.19,
+     "proxy": false
+    },
+    "analysis": {
+     "title_ja": "iShares Russell 2000 Index Fund（IWM）の買い付け：11月5日はJacksonが首位",
+     "sentiment": "neutral",
+     "sentiment_score": 0.05,
+     "impact": 1,
+     "category": "market_move",
+     "symbols": [
+      "IWM"
+     ],
+     "reason_ja": "ETFの資金流入に伴う機械的な売買の集計記事で、価格への影響はほぼない。",
+     "model": "claude-opus-5-5",
+     "analyzed_utc": "2026-11-09T11:23:11+00:00",
+     "kind": "recap",
+     "sentiment_label": "中立",
+     "category_label": "相場動向"
+    },
+    "importance": {
+     "total": 30,
+     "label": "低",
+     "components": {
+      "impact": 8,
+      "sentiment": 0.8,
+      "relevance": 10,
+      "price": 15
+     },
+     "freshness_weight": 0.8
+    },
+    "analysis_error": null
+   }
+  ],
+  "evaluation": {
+   "recorded": 233,
+   "horizons": {
+    "1": {
+     "n": 159,
+     "events": 13,
+     "direction": {
+      "n": 10,
+      "hit_rate": 0.3,
+      "n_headlines": 53,
+      "by_kind": {
+       "recap": {
+        "n": 2,
+        "hit_rate": 0.5
+       },
+       "unknown": {
+        "n": 10,
+        "hit_rate": 0.3
+       }
+      }
+     },
+     "by_score": {
+      "high_abs_z": 0.87,
+      "low_abs_z": 0.82,
+      "n_each": 6
+     },
+     "rank_corr": 0.168,
+     "enough": false
+    },
+    "3": {
+     "n": 34,
+     "events": 2,
+     "direction": {
+      "n": 2,
+      "hit_rate": 1.0,
+      "n_headlines": 18,
+      "by_kind": {
+       "unknown": {
+        "n": 2,
+        "hit_rate": 1.0
+       }
+      }
+     },
+     "by_score": {
+      "high_abs_z": 0.48,
+      "low_abs_z": 1.06,
+      "n_each": 1
+     },
+     "rank_corr": null,
+     "enough": false
+    }
+   },
+   "min_samples": 30,
+   "direction_min": 0.2,
+   "pending": 74
+  }
+ },
+ "forward": {
+  "as_of_utc": "2026-11-09T12:00:42+00:00",
+  "min_trades": 10,
+  "rows": [
+   {
+    "trial": "S4_BO_STOCK:72f4f01bbf",
+    "strategy": "S4_BO_STOCK",
+    "name": "出来高ブレイク（個別株）",
+    "asset_class": "stock",
+    "params": {
+     "lookback": 20,
+     "vol_mult": 1.5,
+     "stop_k": 2.0,
+     "exit_sma": 20,
+     "max_hold": 10
+    },
+    "start": "2026-11-09",
+    "bars": 0,
+    "trades": 0,
+    "win_rate": null,
+    "net_pnl": 0.0,
+    "bt_expectancy_r": 0.1012,
+    "passed_now": false,
+    "n": 0,
+    "mean_r": null,
+    "range90": null,
+    "consistent": null,
+    "signals_today": []
+   },
+   {
+    "trial": "S4_BO_CRYPTO:3e4d967534",
+    "strategy": "S4_BO_CRYPTO",
+    "name": "出来高ブレイク（暗号資産）",
+    "asset_class": "crypto",
+    "params": {
+     "lookback": 20,
+     "vol_mult": 1.5,
+     "stop_k": 3.0,
+     "exit_sma": 20,
+     "max_hold": 10
+    },
+    "start": "2026-11-09",
+    "bars": 0,
+    "trades": 0,
+    "win_rate": null,
+    "net_pnl": 0.0,
+    "bt_expectancy_r": 0.397,
+    "passed_now": false,
+    "n": 0,
+    "mean_r": null,
+    "range90": null,
+    "consistent": null,
+    "signals_today": []
+   },
+   {
+    "trial": "S1_PEAD:ac44690493",
+    "strategy": "S1_PEAD",
+    "name": "決算後ドリフト（個別株）",
+    "asset_class": "stock",
+    "params": {
+     "min_surprise": 5.0,
+     "min_react": 0.02,
+     "vol_mult": 1.5,
+     "stop_k": 2.0,
+     "max_hold": 10
+    },
+    "start": "2026-11-09",
+    "bars": 0,
+    "trades": 0,
+    "win_rate": null,
+    "net_pnl": 0.0,
+    "bt_expectancy_r": 0.1147,
+    "passed_now": false,
+    "n": 0,
+    "mean_r": null,
+    "range90": null,
+    "consistent": null,
+    "signals_today": []
+   },
+   {
+    "trial": "S3_MR_ETF:378483002a",
+    "strategy": "S3_MR_ETF",
+    "name": "売られすぎの反発（ETF）",
+    "asset_class": "etf",
+    "params": {
+     "rsi_th": 10.0,
+     "stop_k": 2.0,
+     "max_hold": 5
+    },
+    "start": "2026-11-09",
+    "bars": 0,
+    "trades": 0,
+    "win_rate": null,
+    "net_pnl": 0.0,
+    "bt_expectancy_r": 0.0387,
+    "passed_now": false,
+    "n": 0,
+    "mean_r": null,
+    "range90": null,
+    "consistent": null,
+    "signals_today": []
+   },
+   {
+    "trial": "S7_PULLBACK_STOCK:c5512c9ebe",
+    "strategy": "S7_PULLBACK_STOCK",
+    "name": "上昇トレンドの押し目（個別株）",
+    "asset_class": "stock",
+    "params": {
+     "n_down": 4,
+     "stop_k": 3.0,
+     "max_hold": 5
+    },
+    "start": "2026-11-09",
+    "bars": 0,
+    "trades": 0,
+    "win_rate": null,
+    "net_pnl": 0.0,
+    "bt_expectancy_r": 0.0229,
+    "passed_now": false,
+    "n": 0,
+    "mean_r": null,
+    "range90": null,
+    "consistent": null,
+    "signals_today": []
+   },
+   {
+    "trial": "S8_NR_ETF:b6cabf484d",
+    "strategy": "S8_NR_ETF",
+    "name": "値幅縮小からの上放れ（ETF）",
+    "asset_class": "etf",
+    "params": {
+     "nr": 4,
+     "stop_k": 2.0,
+     "exit_sma": 10,
+     "max_hold": 10
+    },
+    "start": "2026-11-09",
+    "bars": 0,
+    "trades": 0,
+    "win_rate": null,
+    "net_pnl": 0.0,
+    "bt_expectancy_r": 0.0159,
+    "passed_now": false,
+    "n": 0,
+    "mean_r": null,
+    "range90": null,
+    "consistent": null,
+    "signals_today": []
+   },
+   {
+    "trial": "S4_BO_ETF:0dc23131a1",
+    "strategy": "S4_BO_ETF",
+    "name": "出来高ブレイク（ETF）",
+    "asset_class": "etf",
+    "params": {
+     "lookback": 20,
+     "vol_mult": 1.5,
+     "stop_k": 3.0,
+     "exit_sma": 20,
+     "max_hold": 10
+    },
+    "start": "2026-11-09",
+    "bars": 0,
+    "trades": 0,
+    "win_rate": null,
+    "net_pnl": 0.0,
+    "bt_expectancy_r": 0.0563,
+    "passed_now": false,
+    "n": 0,
+    "mean_r": null,
+    "range90": null,
+    "consistent": null,
+    "signals_today": []
+   },
+   {
+    "trial": "S5_ROTATION:b2ccb167d3",
+    "strategy": "S5_ROTATION",
+    "name": "セクターローテーション",
+    "asset_class": "etf",
+    "params": {
+     "top_n": 2,
+     "mom": 126,
+     "hold": 5,
+     "stop_k": 3.0
+    },
+    "start": "2026-11-09",
+    "bars": 0,
+    "trades": 0,
+    "win_rate": null,
+    "net_pnl": 0.0,
+    "bt_expectancy_r": -0.0443,
+    "passed_now": false,
+    "n": 0,
+    "mean_r": null,
+    "range90": null,
+    "consistent": null,
+    "signals_today": [
+     {
+      "symbol": "XLF",
+      "date": "2026-11-06",
+      "limit": 57.4,
+      "stop": 54.51
+     },
+     {
+      "symbol": "XLV",
+      "date": "2026-11-06",
+      "limit": 185.7,
+      "stop": 174.93
+     }
+    ]
+   },
+   {
+    "trial": "S7_PULLBACK_ETF:09917befc4",
+    "strategy": "S7_PULLBACK_ETF",
+    "name": "上昇トレンドの押し目（ETF）",
+    "asset_class": "etf",
+    "params": {
+     "n_down": 3,
+     "stop_k": 2.0,
+     "max_hold": 5
+    },
+    "start": "2026-11-09",
+    "bars": 0,
+    "trades": 0,
+    "win_rate": null,
+    "net_pnl": 0.0,
+    "bt_expectancy_r": -0.0441,
+    "passed_now": false,
+    "n": 0,
+    "mean_r": null,
+    "range90": null,
+    "consistent": null,
+    "signals_today": []
+   },
+   {
+    "trial": "S3_MR_CRYPTO:e9204db17a",
+    "strategy": "S3_MR_CRYPTO",
+    "name": "売られすぎの反発（暗号資産）",
+    "asset_class": "crypto",
+    "params": {
+     "rsi_th": 10.0,
+     "stop_k": 2.0,
+     "max_hold": 5
+    },
+    "start": "2026-11-09",
+    "bars": 0,
+    "trades": 0,
+    "win_rate": null,
+    "net_pnl": 0.0,
+    "bt_expectancy_r": 0.0333,
+    "passed_now": false,
+    "n": 0,
+    "mean_r": null,
+    "range90": null,
+    "consistent": null,
+    "signals_today": []
+   },
+   {
+    "trial": "S6_VOL:2f4b4532ca",
+    "strategy": "S6_VOL",
+    "name": "ボラティリティ局面の転換",
+    "asset_class": "etf",
+    "params": {
+     "vix_th": 20.0,
+     "stop_k": 3.0,
+     "max_hold": 5
+    },
+    "start": "2026-11-09",
+    "bars": 0,
+    "trades": 0,
+    "win_rate": null,
+    "net_pnl": 0.0,
+    "bt_expectancy_r": -0.0045,
+    "passed_now": false,
+    "n": 0,
+    "mean_r": null,
+    "range90": null,
+    "consistent": null,
+    "signals_today": []
+   }
+  ],
+  "history": []
+ },
+ "brief": {
+  "name": "2026-11-10.md",
+  "text": "# モーニングブリーフ 2026-11-10\n\n作成 11/10 07:41 JST。テンプレートで自動作成。\n\n> **5分ごとの処理（tickコンテナ）が止まっている可能性があります。** 最終実行 11/10 07:12 JST。PCのスリープや再起動、Docker Desktopの停止を確認してください。\n\n## 市場\n- SPY 735.29（2026-11-06）、前日比 +0.31%、21営業日 -4.99%、200日線より上\n- QQQ 656.10（2026-11-06）、前日比 +1.40%、21営業日 -12.24%、200日線より下\n- VIX 23.35（2026-11-09）\n- BTC 74,584.65（2026-11-08）、前日比 -1.54%、21営業日 -9.06%、200日線より上\n- セクター（21営業日）: 強い XLV +9.90%、XLP +7.98%、XLRE +7.71% / 弱い XLK -16.71%、XLC -6.50%、XLE -5.55%\n\n## 高インパクトイベント\n- 2026-11-10: 米CPI（10月分）08:30 ET（出典: https://thriveinmarkets.com/calendar/dates/cpi-2026/。第三者情報で公式未確認）\n\n## 戦略トップ3: 合格 0本（全108試行、調査 11/09 21:00 JST）\n\n### 1. 出来高ブレイク（個別株）: 不合格\n- スコア 18/25、OOSシャープ 0.66、デフレートシャープ 0.33。\n- 不合格の理由: デフレートシャープが0.33で0.5未満。\n- OOS 419トレード、損益 +$18,779、最大DD 6.7%。\n- 1本遅れ＋スリッページ2倍: +$14,342。\n- チェック: OOS○ コスト後○ 遅延○ デフレート× 2020年○ 2022年○。\n- WHY THIS COULD FAIL: レンジ相場でのだまし上げ。銘柄固有ニュースでの窓開け下落。 銘柄は今日時点の大型株で、生存バイアスがあり、成績は実力より良く見えている可能性が高い。 過去の決算日は実績の日付を使っている。本番では予定日が変わる可能性がある。\n\n### 2. 出来高ブレイク（暗号資産）: 不合格\n- スコア 16/25、OOSシャープ 0.79、デフレートシャープ 0.29。\n- 不合格の理由: デフレートシャープが0.29で0.5未満 / スコア16で18未満。\n- OOS 48トレード、損益 +$9,486、最大DD 2.5%。\n- 1本遅れ＋スリッページ2倍: +$4,451。\n- チェック: OOS○ コスト後○ 遅延○ デフレート× 2020年○ 2022年○。\n- WHY THIS COULD FAIL: もみ合いと急反転。手数料が往復30〜50bpsかかる点。 検証価格はYahooで、発注先のAlpacaとは価格も手数料後の約定も異なる。 2020年か2022年の取引数が少なく、危機時の頑健性はほぼ未検証。\n\n### 3. 決算後ドリフト（個別株）: 不合格\n- スコア 16/25、OOSシャープ 0.38、デフレートシャープ 0.13。\n- 不合格の理由: デフレートシャープが0.13で0.5未満 / スコア16で18未満。\n- OOS 125トレード、損益 +$5,404、最大DD 3.7%。\n- 1本遅れ＋スリッページ2倍: +$10,994。\n- チェック: OOS○ コスト後○ 遅延○ デフレート× 2020年○ 2022年○。\n- WHY THIS COULD FAIL: 決算への反応が翌日に反転しやすい局面、市場全体の急落局面。 銘柄は今日時点の大型株で、生存バイアスがあり、成績は実力より良く見えている可能性が高い。 過去の決算日は実績の日付を使っている。本番では予定日が変わる可能性がある。\n\n## Risk Officerの拒否\n- なし\n\n## ボットの状況\n- 5分ごとの処理: 停止の可能性（最終実行 11/10 07:12 JST）\n- チャンピオン: なし\n- Alpacaペーパー口座: 接続あり\n- キルスイッチ: 未作動\n- 夜間のペーパートレード: なし\n\n## 確認事項\n- 決算後ドリフト（個別株）: 遅延テストが通常より良い。検査の不具合か偶然を確認する\n- 出来高ブレイク（ETF）: 遅延テストが通常より良い。検査の不具合か偶然を確認する\n- 上昇トレンドの押し目（ETF）: 遅延テストが通常より良い。検査の不具合か偶然を確認する\n\n## 判断事項\nチャンピオンなし（合格0本）。**再検証の候補**: 出来高ブレイク（個別株）（デフレートシャープが0.33で0.5未満）。基準は変えません。\n\nこれは検証データであり投資助言ではありません。\n"
+ },
+ "refresh": {}
+}

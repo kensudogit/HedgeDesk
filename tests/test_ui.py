@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from hedgedesk import config as C, scout, trader, ui
+from hedgedesk import config as C, journal, scout, trader, ui
 
 
 @pytest.fixture
@@ -173,3 +173,37 @@ def test_local_default_has_no_password_and_fixed_port(server, monkeypatch):
     monkeypatch.delenv("HEDGEDESK_UI_PASSWORD", raising=False)
     assert _get(server, "/api/status")[0] == 200
     assert ui.PORT == 8765
+
+
+def test_demo_serves_saved_snapshot_without_auth_and_never_reads_state(server, monkeypatch, tmp_path):
+    """デモは保存した見本だけを返す。公開環境でも認証なしで見られ、実データ（status）は読まず、更新も受け付けない。"""
+    snap = tmp_path / "snapshot.json"
+    snap.write_text(json.dumps({"now_utc": "2026-11-10T03:00:00+00:00", "strategies": [], "alpaca_keys": True, "refresh": {"pending": True}}), encoding="utf-8")
+    monkeypatch.setattr(ui, "DEMO_SNAPSHOT", snap)
+    monkeypatch.setattr(ui, "status", lambda now=None: (_ for _ in ()).throw(AssertionError("デモで実データを読んだ")))
+    monkeypatch.setenv("PORT", "8080")
+    monkeypatch.setenv("HEDGEDESK_DEMO", "1")
+    monkeypatch.delenv("HEDGEDESK_UI_PASSWORD", raising=False)
+    code, _, body = _get(server, "/api/status")
+    data = json.loads(body)
+    assert code == 200 and data["demo"] == {"as_of_utc": "2026-11-10T03:00:00+00:00"} and data["refresh"] == {}
+    assert _get(server, "/")[0] == 200
+    assert post(server)[0] == 403
+
+
+def test_demo_snapshot_drops_internal_details(monkeypatch, tmp_path):
+    """見本には保有台帳・更新依頼・エラーの詳細を載せず、件数を絞る。キーの値は status と同じく含まない。"""
+    monkeypatch.setattr(ui, "DEMO_SNAPSHOT", tmp_path / "demo" / "snapshot.json")
+    journal.log("job_error", "Chief of Staff", job="research", error="Traceback (most recent call last) ...")
+    for i in range(20):
+        journal.log("research", "Strategist", IDEA=f"S{i}")
+    snap = ui.make_demo_snapshot()
+    assert snap["open_book"] == [] and snap["refresh"] == {}
+    assert len(snap["journal"]) == ui.DEMO_JOURNAL_LIMIT and all("error" not in r for r in snap["journal"])
+    assert json.loads((tmp_path / "demo" / "snapshot.json").read_text(encoding="utf-8"))["now_utc"] == snap["now_utc"]
+
+
+def test_page_has_demo_banner_filled_as_text():
+    """デモの注記は静的な要素に textContent で入れる（HTML として組み立てない）。"""
+    assert 'id="demo" role="note" hidden' in ui.PAGE
+    assert "$('demo').textContent=" in ui.PAGE

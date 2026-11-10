@@ -1,4 +1,4 @@
-"""コマンド入口: python -m hedgedesk <research|forward|brief|brief-data|tick|loop|jobs|weekly|scout|news|status|check-alpaca|ui|reset-kill>"""
+"""コマンド入口: python -m hedgedesk <research|forward|demo-snapshot|brief|brief-data|tick|loop|jobs|weekly|scout|news|status|check-alpaca|ui|reset-kill>"""
 #
 # 【役割】`python -m hedgedesk <サブコマンド>` の入口。引数を見て各モジュールの関数を呼び分ける。
 # 【位置付け】Docker Compose の各サービス（ui / tick=loop / jobs）と手動操作の両方がここを通る。
@@ -38,6 +38,12 @@ def main() -> int:
         ctx, _ = build_context(refresh=False)
         out = forward.update(rep.get("ranked", []), ctx)
         print(json.dumps([{k: r[k] for k in ("strategy", "start", "trades", "mean_r", "range90", "consistent", "signals_today")} for r in out["rows"]], ensure_ascii=False, indent=1))
+    elif cmd == "demo-snapshot":
+        # 今の画面の内容をデモモードの見本（hedgedesk/demo/snapshot.json）として保存する。
+        from .ui import DEMO_SNAPSHOT, make_demo_snapshot
+
+        make_demo_snapshot()
+        print(DEMO_SNAPSHOT)
     elif cmd == "brief-data":
         # ブリーフの材料だけを作って state/brief_data.json に保存し、そのパスを表示する。
         from .desk import brief_data

@@ -3,6 +3,8 @@
 - 既定は 127.0.0.1 だけで待ち受ける。PCの外からは見えない。
 - Railway などのクラウドで動かすとき（環境変数 PORT がある）は 0.0.0.0:$PORT で待ち受け、
   HEDGEDESK_UI_PASSWORD による Basic 認証を必須にする。パスワードがなければ /healthz 以外は何も見せない。
+- デモモード（HEDGEDESK_DEMO=1）では、認証なしで見本の画面を出す。見本は hedgedesk/demo/snapshot.json に保存した
+  ある時点の実際の画面の内容で、state/ などの実データは一切読まない。更新の依頼も受け付けない。
 - GETのみ。発注、キルスイッチ解除、設定変更の機能は持たない。
 - ニュースの見出しなど外部の文字列（AI による訳と理由を含む）は、画面側で textContent としてのみ表示する。
 """
@@ -33,6 +35,11 @@ HOST = os.environ.get("HEDGEDESK_UI_HOST", "0.0.0.0" if PUBLIC else "127.0.0.1")
 # TICK_STALE_SECONDS: 最終 tick からこの秒数（10分）を超えたら、画面で「停止の可能性」と表示する。
 PORT = int(os.environ.get("PORT") or 8765)
 TICK_STALE_SECONDS = 600
+# デモモードの見本（`python -m hedgedesk demo-snapshot` で作る）。イメージにはパッケージと一緒に入る。
+DEMO_SNAPSHOT = C.ROOT / "hedgedesk" / "demo" / "snapshot.json"
+# 見本に載せる件数（画面が長くなりすぎないように）。
+DEMO_NEWS_LIMIT = 15
+DEMO_JOURNAL_LIMIT = 10
 # 画面のロゴとファビコン（/logo.png で返す）。イメージには Dockerfile で public/PC.png だけをコピーする。
 LOGO = C.ROOT / "public" / "PC.png"
 
@@ -181,6 +188,7 @@ main{max-width:1240px;margin:0 auto;padding:24px 20px 56px}
 h2{font-size:15.5px;margin:0;font-weight:680;display:flex;align-items:center;gap:10px}
 h2::before{content:"";width:4px;height:16px;border-radius:2px;background:linear-gradient(var(--accent),var(--accent2));flex:none}
 .mute{color:var(--mute);font-size:12.5px;font-weight:400}
+.demo{margin:0 0 16px;padding:12px 16px;border-radius:14px;border:1px solid color-mix(in srgb,var(--warn) 45%,var(--line));background:color-mix(in srgb,var(--warn) 12%,var(--panel));font-size:13px;line-height:1.7}
 .hero{--hc:var(--accent);position:relative;overflow:hidden;border-radius:20px;padding:22px 24px 20px;margin-bottom:20px;background:linear-gradient(135deg,color-mix(in srgb,var(--hc) 15%,var(--panel)) 0%,var(--panel) 55%);border:1px solid color-mix(in srgb,var(--hc) 32%,var(--line));box-shadow:var(--shadow);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);animation:rise .5s ease both}
 .hero::after{content:"";position:absolute;right:-80px;top:-80px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--hc) 30%,transparent),transparent 70%);pointer-events:none}
 .hero[data-s=ok]{--hc:var(--ok)}.hero[data-s=bad]{--hc:var(--bad)}.hero[data-s=warn]{--hc:var(--warn)}
@@ -259,6 +267,7 @@ pre.gtopo{margin-top:8px;font-size:11.3px;white-space:pre;overflow-wrap:normal}
 </style></head><body>
 <header class="top"><div class="in"><div class="brand"><img class="logo" id="logo" src="/logo.png" alt="" width="34" height="34"><span class="logo" id="logotext" aria-hidden="true" hidden>HD</span><h1>HedgeDesk</h1></div><span class="pill">ペーパー取引のみ</span><button class="gbtn" id="guidebtn" type="button" aria-controls="guide" aria-expanded="false">利用手順</button><span class="live"><span class="dot" id="dot"></span><span id="updated">接続中</span></span></div></header>
 <main>
+<p class="demo" id="demo" role="note" hidden></p>
 <div class="hero" id="hero"><div class="eyebrow">デスクの状態</div><p class="lead" id="lead">読み込み中です</p><div class="tiles" id="stat"></div></div>
 <section><div class="head"><div><h2>戦略の順位</h2><span class="mute" id="research"></span></div><span class="act"><span class="mute" id="refreshmsg"></span><button id="refresh" type="button">今すぐ更新</button></span></div><div class="scroll"><table id="strat"></table></div><p class="mute" id="stratnote"></p></section>
 <section><div class="head"><div><h2>フォワード記録</h2><span class="mute">記録開始日より後のデータだけで全戦略を追跡。発注はしません</span></div><span class="mute" id="fwdasof"></span></div><div class="scroll"><table id="fwd"></table></div><p class="mute" id="fwdnote"></p></section>
@@ -330,7 +339,8 @@ function meter(ratio,cls){const m=el('div',null,'meter'),f=el('i',null,'m-'+cls)
 function senti(v,cls){const s=el('div',null,'senti'),f=el('i',null,'m-'+cls),x=Math.max(-1,Math.min(1,v||0));f.style.left=(50+Math.min(0,x)*50)+'%';f.style.width=Math.abs(x)*50+'%';s.append(f);return s}
 const kinds={research:'検証',veto:'拒否',handoff:'受け渡し',order:'発注',fill_opened:'約定',fill_closed:'決済',kill_switch:'キルスイッチ',kill_reset:'キルスイッチ解除',owner_decision:'オーナー判断',champion:'チャンピオン',job_error:'エラー',order_not_sent:'未発注',weekly_review:'週次レビュー',no_session:'休場'};
 function jsum(r){if(r.kind==='research')return r.IDEA+'：'+r.NEXT_STEP;if(r.kind==='owner_decision')return r.decision;if(r.kind==='veto')return r.TICKER+'：'+(r.EVIDENCE||[]).join('、');if(r.kind==='kill_switch')return r.reason;if(r.TICKER)return r.TICKER+(r.IDEA?'：'+r.IDEA:'');return r.reason||r.job||r.action||''}
-const ago=s=>{if(!s)return null;const m=Math.floor((Date.now()-new Date(s).getTime())/60000);return m<0?null:m};
+let refNow=null;
+const ago=s=>{if(!s)return null;const m=Math.floor(((refNow??Date.now())-new Date(s).getTime())/60000);return m<0?null:m};
 const agoText=m=>m==null?'—':m<60?m+'分前':m<1440?Math.floor(m/60)+'時間前':Math.floor(m/1440)+'日前';
 function freshOf(m){return m==null?['時刻不明','off']:m<=360?['新鮮','ok']:m<=1440?['24時間以内','warn']:m<=4320?['古い','off']:['期限切れ','bad']}
 const sentCls={positive:'ok',negative:'bad',neutral:'off',mixed:'warn'};
@@ -381,10 +391,12 @@ function renderForward(f){
   return[n,r.start,r.bars,r.trades,r2(r.mean_r),r.range90?r2(r.range90[0])+' 〜 '+r2(r.range90[1]):'—',cc,sg]}));
  $('fwdnote').textContent='登録した日のパラメータを固定し、その後の足だけで同じシミュレータ（コスト・キルスイッチ込み）を回した成績です。バックテストと違い、過去を見て選び直していません。整合は、平均Rがバックテスト（OOS）のトレード分布から同じ件数を引いたときの90%範囲に入るかで、'+f.min_trades+'件未満は判定しません。最新の足のシグナルは参考表示で、発注には使いません。'+((f.history||[]).length?' パラメータが変わった古い登録 '+f.history.length+'件も追跡を続けています。':'')}
 function render(s){
+ refNow=s.demo?new Date(s.demo.as_of_utc).getTime():null;
+ if(s.demo){$('demo').hidden=false;$('demo').textContent='デモ表示：'+jst(s.demo.as_of_utc)+' JST 時点の実際の画面を保存した見本です。更新されず、発注もしません。数値はペーパー口座（架空の資金）と検証の結果で、利益を約束するものでも投資助言でもありません。'}
  const champ=s.champion,kill=s.kill_switch&&s.kill_switch.active,canTrade=champ&&s.alpaca_keys&&!kill;
  $('lead').textContent=kill?'キルスイッチが作動中です。新規の取引は止まっています。':canTrade?'ペーパートレードの稼働条件が揃っています。':!s.tick_healthy?'定期実行が止まっている可能性があります。':'調査は稼働中です。取引はしていません。'+(champ?'Alpacaのキーが未設定です。':'基準を通った戦略がありません。');
  $('hero').dataset.s=kill||!s.tick_healthy?'bad':canTrade?'ok':'idle';$('dot').dataset.s=s.tick_healthy?'ok':'bad';
- $('updated').textContent='更新 '+jst(s.now_utc)+' JST（15秒ごとに更新）';
+ $('updated').textContent=s.demo?'見本 '+jst(s.now_utc)+' JST 時点（更新されません）':'更新 '+jst(s.now_utc)+' JST（15秒ごとに更新）';
  $('stat').replaceChildren();
  row('5分ごとの定期実行',s.tick_healthy?'稼働中':'停止の可能性',s.tick_healthy?'ok':'bad','最終実行 '+jst(s.last_tick)+' JST');
  row('チャンピオン',champ?champ.id:'なし',champ?'ok':'off',champ?'スコア '+champ.score:'基準を通った戦略がないため、取引しません');
@@ -393,7 +405,7 @@ function render(s){
  row('保有・発注中',s.open_book.length+'件',s.open_book.length?'warn':'off','');
  const issues=Object.entries(s.data_issues||{});
  row('データの不備',issues.length?issues.length+'銘柄':'なし',issues.length?'warn':'ok',issues.map(([k,v])=>k+'：'+v.join('、')).join(' / '));
- const rf=s.refresh||{};$('refresh').disabled=!!(rf.pending||rf.running);$('refreshmsg').textContent=rf.running?'調査を実行中です（数分かかります）':rf.pending?'更新を受け付けました。jobsコンテナが1分以内に開始します':'';
+ const rf=s.refresh||{};$('refresh').disabled=!!(s.demo||rf.pending||rf.running);$('refreshmsg').textContent=rf.running?'調査を実行中です（数分かかります）':rf.pending?'更新を受け付けました。jobsコンテナが1分以内に開始します':'';
  $('research').textContent=s.research_as_of?jst(s.research_as_of)+' JST 時点、累計'+s.n_trials+'試行、合格'+s.passed_ids.length+'本':'';
  table($('strat'),[['戦略'],['判定'],['スコア',1],['OOSシャープ',1],['デフレートSR',1],['トレード',1],['最大DD',1],['OOS損益',1],['遅延ストレス',1]],s.strategies.map(r=>{const n=el('div');n.append(el('div',r.name));if(!r.passed)n.append(el('div',r.failures.join(' / '),'fail'));const st=el('span',usd(r.stress_pnl));if(r.stress_better)st.append(' ',el('span','要確認','badge warn'));const sc=el('div');sc.append(el('div',r.score+'/25'),meter(r.score/25,r.passed?'ok':r.score>=18?'warn':'acc'));return[n,el('span',r.passed?'合格':'不合格','badge '+(r.passed?'ok':'off')),sc,r.oos_sharpe.toFixed(2),r.dsr.toFixed(2),r.trades,pct(r.max_dd),usd(r.net_pnl),st]}));
  $('stratnote').textContent='合格ライン: スコア18以上、デフレートSR 0.50以上など。遅延ストレスは1本遅れ＋スリッページ2倍の損益で、通常より良い場合は検査の不具合を疑います。'+(s.blocked.length?' 未検証: '+s.blocked.map(b=>b.name).join('、')+'。':'');
@@ -433,6 +445,33 @@ load();setInterval(load,15000);
 </script></body></html>"""
 
 
+def demo_enabled() -> bool:
+    """デモモードか（環境変数 HEDGEDESK_DEMO）。リクエストごとに読む。"""
+    return os.environ.get("HEDGEDESK_DEMO", "").strip().lower() in ("1", "true", "yes")
+
+
+def make_demo_snapshot(now: datetime | None = None) -> dict:
+    """今の画面の内容から見本を作って DEMO_SNAPSHOT に保存する。値は実際の画面のもので、作り足さない。
+
+    件数を絞り、保有台帳・更新依頼の状態・ジャーナルのエラーの詳細は載せない（見本に不要で、内部の情報を含みうるため）。
+    """
+    snap = status(now)
+    snap["open_book"] = []
+    snap["refresh"] = {}
+    snap["journal"] = [{k: v for k, v in r.items() if k not in ("error", "traceback")} for r in snap["journal"][:DEMO_JOURNAL_LIMIT]]
+    if snap.get("news"):
+        snap["news"] = {**snap["news"], "items": snap["news"]["items"][:DEMO_NEWS_LIMIT]}
+    DEMO_SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
+    DEMO_SNAPSHOT.write_text(json.dumps(snap, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+    return snap
+
+
+def demo_status() -> dict:
+    """デモモードで画面に返す内容。保存した見本に、見本であることの印（demo）を付ける。"""
+    snap = json.loads(DEMO_SNAPSHOT.read_text(encoding="utf-8"))
+    return {**snap, "refresh": {}, "demo": {"as_of_utc": snap.get("now_utc")}}
+
+
 def _auth_error(headers) -> tuple[int, bytes, dict] | None:
     """認証の判定。問題なければ None、だめなら (HTTP ステータス, 本文, 追加ヘッダー)。
 
@@ -440,6 +479,9 @@ def _auth_error(headers) -> tuple[int, bytes, dict] | None:
     公開環境（PORT あり）でパスワードがなければ、口座や取引の情報を守るため 503 で何も見せない。
     環境変数はリクエストごとに読む（テストで差し替えるため。値は保存しない）。
     """
+    if demo_enabled():
+        # デモは見本だけを返し、実データを読まないので、認証なしで公開してよい。
+        return None
     password = os.environ.get("HEDGEDESK_UI_PASSWORD", "")
     public = bool(os.environ.get("PORT"))
     if not password:
@@ -498,7 +540,7 @@ class Handler(BaseHTTPRequestHandler):
             except OSError:
                 self._send(404, b"not found", "text/plain")
         elif self.path == "/api/status":
-            body = json.dumps(status(), ensure_ascii=False, default=str).encode("utf-8")
+            body = json.dumps(demo_status() if demo_enabled() else status(), ensure_ascii=False, default=str).encode("utf-8")
             self._send(200, body, "application/json; charset=utf-8")
         else:
             self._send(404, b"not found", "text/plain")
@@ -513,6 +555,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path != "/api/refresh":
             self._send(404, b"not found", "text/plain")
+            return
+        if demo_enabled():
+            self._send(403, json.dumps({"message": "デモでは更新できません"}, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
             return
         if self.headers.get("X-HedgeDesk-Action") != "refresh" or int(self.headers.get("Content-Length") or 0) > 1024:
             self._send(403, b"forbidden", "text/plain")
